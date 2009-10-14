@@ -32,7 +32,7 @@
 #include "squashfs.h"
 #include "decompressor.h"
 
-static void *zlib_init(void)
+static void *zlib_init(struct squashfs_sb_info *dummy)
 {
 	z_stream *stream = kmalloc(sizeof(z_stream), GFP_KERNEL);
 	if (stream == NULL)
