@@ -94,3 +94,6 @@ extern const struct address_space_operations squashfs_symlink_aops;
 
 /* zlib_wrapper.c */
 extern const struct squashfs_decompressor squashfs_zlib_comp_ops;
+
+/* lzma wrapper.c */
+extern const struct squashfs_decompressor squashfs_lzma_comp_ops;
