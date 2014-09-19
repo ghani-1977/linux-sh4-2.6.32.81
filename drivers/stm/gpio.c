@@ -667,7 +667,7 @@ static void stm_gpio_dbg_show(struct seq_file *s, struct gpio_chip *chip)
 			break;
 		default:
 			/* Should never get here... */
-			__WARN();
+			WARN_ON(1);
 			direction = "unknown configuration";
 			break;
 		}
@@ -709,7 +709,7 @@ static void stm_gpio_dbg_show(struct seq_file *s, struct gpio_chip *chip)
 					trigger = "level-low";
 					break;
 				default:
-					__WARN();
+					WARN_ON(1);
 					trigger = "unknown";
 					break;
 				}
