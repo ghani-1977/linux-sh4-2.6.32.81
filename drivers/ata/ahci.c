@@ -421,6 +421,202 @@ static void ahci_pci_save_initial_config(struct pci_dev *pdev,
 			mask_port_map = 0xf;
 		dev_info(&pdev->dev,
 			  "Disabling your PATA port. Use the boot option 'ahci.marvell_enable=0' to avoid this.\n");
+
+		port_map &= mv;
+	}
+
+	/* cross check port_map and cap.n_ports */
+	if (port_map) {
+		int map_ports = 0;
+
+		for (i = 0; i < AHCI_MAX_PORTS; i++)
+			if (port_map & (1 << i))
+				map_ports++;
+
+		/* If PI has more ports than n_ports, whine, clear
+		 * port_map and let it be generated from n_ports.
+		 */
+		if (map_ports > ahci_nr_ports(cap)) {
+			dev_printk(KERN_WARNING, &pdev->dev,
+				   "implemented port map (0x%x) contains more "
+				   "ports than nr_ports (%u), using nr_ports\n",
+				   port_map, ahci_nr_ports(cap));
+			port_map = 0;
+		}
+	}
+
+	/* fabricate port_map from cap.nr_ports for < AHCI 1.3 */
+	if (!port_map && vers < 0x10300) {
+		port_map = (1 << ahci_nr_ports(cap)) - 1;
+		dev_printk(KERN_WARNING, &pdev->dev,
+			   "forcing PORTS_IMPL to 0x%x\n", port_map);
+
+		/* write the fixed up value to the PI register */
+		hpriv->saved_port_map = port_map;
+	}
+
+	/* record values to use during operation */
+	hpriv->cap = cap;
+	hpriv->cap2 = cap2;
+	hpriv->port_map = port_map;
+}
+
+/**
+ *	ahci_restore_initial_config - Restore initial config
+ *	@host: target ATA host
+ *
+ *	Restore initial config stored by ahci_save_initial_config().
+ *
+ *	LOCKING:
+ *	None.
+ */
+static void ahci_restore_initial_config(struct ata_host *host)
+{
+	struct ahci_host_priv *hpriv = host->private_data;
+	void __iomem *mmio = host->iomap[AHCI_PCI_BAR];
+
+	writel(hpriv->saved_cap, mmio + HOST_CAP);
+	if (hpriv->saved_cap2)
+		writel(hpriv->saved_cap2, mmio + HOST_CAP2);
+	writel(hpriv->saved_port_map, mmio + HOST_PORTS_IMPL);
+	(void) readl(mmio + HOST_PORTS_IMPL);	/* flush */
+}
+
+static unsigned ahci_scr_offset(struct ata_port *ap, unsigned int sc_reg)
+{
+	static const int offset[] = {
+		[SCR_STATUS]		= PORT_SCR_STAT,
+		[SCR_CONTROL]		= PORT_SCR_CTL,
+		[SCR_ERROR]		= PORT_SCR_ERR,
+		[SCR_ACTIVE]		= PORT_SCR_ACT,
+		[SCR_NOTIFICATION]	= PORT_SCR_NTF,
+	};
+	struct ahci_host_priv *hpriv = ap->host->private_data;
+
+	if (sc_reg < ARRAY_SIZE(offset) &&
+	    (sc_reg != SCR_NOTIFICATION || (hpriv->cap & HOST_CAP_SNTF)))
+		return offset[sc_reg];
+	return 0;
+}
+
+static int ahci_scr_read(struct ata_link *link, unsigned int sc_reg, u32 *val)
+{
+	void __iomem *port_mmio = ahci_port_base(link->ap);
+	int offset = ahci_scr_offset(link->ap, sc_reg);
+
+	if (offset) {
+		*val = readl(port_mmio + offset);
+		return 0;
+	}
+	return -EINVAL;
+}
+
+static int ahci_scr_write(struct ata_link *link, unsigned int sc_reg, u32 val)
+{
+	void __iomem *port_mmio = ahci_port_base(link->ap);
+	int offset = ahci_scr_offset(link->ap, sc_reg);
+
+	if (offset) {
+		writel(val, port_mmio + offset);
+		return 0;
+	}
+	return -EINVAL;
+}
+
+static void ahci_start_engine(struct ata_port *ap)
+{
+	void __iomem *port_mmio = ahci_port_base(ap);
+	u32 tmp;
+
+	/* start DMA */
+	tmp = readl(port_mmio + PORT_CMD);
+	tmp |= PORT_CMD_START;
+	writel(tmp, port_mmio + PORT_CMD);
+	readl(port_mmio + PORT_CMD); /* flush */
+}
+
+static int ahci_stop_engine(struct ata_port *ap)
+{
+	void __iomem *port_mmio = ahci_port_base(ap);
+	u32 tmp;
+
+	tmp = readl(port_mmio + PORT_CMD);
+
+	/* check if the HBA is idle */
+	if ((tmp & (PORT_CMD_START | PORT_CMD_LIST_ON)) == 0)
+		return 0;
+
+	/* setting HBA to idle */
+	tmp &= ~PORT_CMD_START;
+	writel(tmp, port_mmio + PORT_CMD);
+
+	/* wait for engine to stop. This could be as long as 500 msec */
+	tmp = ata_wait_register(port_mmio + PORT_CMD,
+				PORT_CMD_LIST_ON, PORT_CMD_LIST_ON, 1, 500);
+	if (tmp & PORT_CMD_LIST_ON)
+		return -EIO;
+
+	return 0;
+}
+
+static void ahci_start_fis_rx(struct ata_port *ap)
+{
+	void __iomem *port_mmio = ahci_port_base(ap);
+	struct ahci_host_priv *hpriv = ap->host->private_data;
+	struct ahci_port_priv *pp = ap->private_data;
+	u32 tmp;
+
+	/* set FIS registers */
+	if (hpriv->cap & HOST_CAP_64)
+		writel((pp->cmd_slot_dma >> 16) >> 16,
+		       port_mmio + PORT_LST_ADDR_HI);
+	writel(pp->cmd_slot_dma & 0xffffffff, port_mmio + PORT_LST_ADDR);
+
+	if (hpriv->cap & HOST_CAP_64)
+		writel((pp->rx_fis_dma >> 16) >> 16,
+		       port_mmio + PORT_FIS_ADDR_HI);
+	writel(pp->rx_fis_dma & 0xffffffff, port_mmio + PORT_FIS_ADDR);
+
+	/* enable FIS reception */
+	tmp = readl(port_mmio + PORT_CMD);
+	tmp |= PORT_CMD_FIS_RX;
+	writel(tmp, port_mmio + PORT_CMD);
+
+	/* flush */
+	readl(port_mmio + PORT_CMD);
+}
+
+static int ahci_stop_fis_rx(struct ata_port *ap)
+{
+	void __iomem *port_mmio = ahci_port_base(ap);
+	u32 tmp;
+
+	/* disable FIS reception */
+	tmp = readl(port_mmio + PORT_CMD);
+	tmp &= ~PORT_CMD_FIS_RX;
+	writel(tmp, port_mmio + PORT_CMD);
+
+	/* wait for completion, spec says 500ms, give it 1000 */
+	tmp = ata_wait_register(port_mmio + PORT_CMD, PORT_CMD_FIS_ON,
+				PORT_CMD_FIS_ON, 10, 1000);
+	if (tmp & PORT_CMD_FIS_ON)
+		return -EBUSY;
+
+	return 0;
+}
+
+static void ahci_power_up(struct ata_port *ap)
+{
+	struct ahci_host_priv *hpriv = ap->host->private_data;
+	void __iomem *port_mmio = ahci_port_base(ap);
+	u32 cmd;
+
+	cmd = readl(port_mmio + PORT_CMD) & ~PORT_CMD_ICC_MASK;
+
+	/* spin up device */
+	if (hpriv->cap & HOST_CAP_SSS) {
+		cmd |= PORT_CMD_SPIN_UP;
+		writel(cmd, port_mmio + PORT_CMD);
 	}
 
 	ahci_save_initial_config(&pdev->dev, hpriv, force_port_map,
