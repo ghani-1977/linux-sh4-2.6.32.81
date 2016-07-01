@@ -379,7 +379,7 @@ void fbcon_decor_clear(struct vc_data *vc, struct fb_info *info, int sy, int sx,
        int height, int width)
 {
  int bgshift = (vc->vc_hi_font_mask) ? 13 : 12;
- int bg_color = attr_bgcol_ec(bgshift, vc);
+ int bg_color = attr_bgcol_ec(bgshift, vc, info);
  int transparent = vc->vc_decor.bg_color == bg_color;
  struct fbcon_ops *ops = info->fbcon_par;
  u8 *dst;
