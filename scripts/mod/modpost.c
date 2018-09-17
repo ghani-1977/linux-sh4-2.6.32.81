@@ -528,6 +528,8 @@ static const char *section_white_list[] =
 {
 	".comment*",
 	".debug*",
+	".GCC-command-line", /* mn10300 */
+	".GCC.command.line", /* record-gcc-switches, non mn10300 */
 	".mdebug*",        /* alpha, score, mips etc. */
 	".pdr",            /* alpha, score, mips etc. */
 	".stab*",
