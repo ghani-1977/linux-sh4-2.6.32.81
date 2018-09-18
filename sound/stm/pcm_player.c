@@ -676,10 +676,7 @@ static int snd_stm_pcm_player_stop(struct snd_pcm_substream *substream)
 
 	/* Mute & shutdown DAC */
 
-	if (pcm_player->conv_group) {
-		snd_stm_conv_mute(pcm_player->conv_group);
-		snd_stm_conv_disable(pcm_player->conv_group);
-	}
+	// No we will not
 
 	/* Disable interrupts */
 
@@ -689,7 +686,8 @@ static int snd_stm_pcm_player_stop(struct snd_pcm_substream *substream)
 
 	/* Stop PCM player */
 
-	set__AUD_PCMOUT_CTRL__MODE__OFF(pcm_player);
+	// No, pause it because stopping causes cracking noise
+	set__AUD_PCMOUT_CTRL__MODE__MUTE(pcm_player);
 
 	/* Stop FDMA transfer */
 
@@ -697,8 +695,7 @@ static int snd_stm_pcm_player_stop(struct snd_pcm_substream *substream)
 
 	/* Stop the clock & reset PCM player */
 
-	clk_disable(pcm_player->clock);
-	set__AUD_PCMOUT_RST__SRSTP__RESET(pcm_player);
+	// No we will not
 
 	return 0;
 }
