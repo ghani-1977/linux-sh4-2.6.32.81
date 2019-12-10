@@ -910,7 +910,7 @@ static int clkgenb_xable_clock(clk_t *clk_p, unsigned long enable)
 
 	if (!clk_p)
 		return CLK_ERR_BAD_PARAMETER;
-	if (clk_p->id == CLKB_DVP)
+	if (clk_p->id == CLKB_DVP || clk_p->id==CLKB_REF)
 		return 0;
 
 	for (i = 0; i < ARRAY_SIZE(enable_clock); ++i)
