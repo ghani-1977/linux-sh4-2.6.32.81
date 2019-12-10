@@ -568,7 +568,7 @@ static int clkgenax_xable_pll(clk_t *clk_p, int enable)
 		return CLK_ERR_BAD_PARAMETER;
 	if (clk_p->id != CLKA0_PLL0HS && clk_p->id != CLKA0_PLL1 &&
 	    clk_p->id != CLKA1_PLL0HS && clk_p->id != CLKA1_PLL1)
-		return CLK_ERR_BAD_PARAMETER;
+		return 0;
 
 	if (clk_p->id == CLKA0_PLL1 || clk_p->id == CLKA1_PLL1)
 		bit = 1;
@@ -635,6 +635,8 @@ static int clkgenax_disable(clk_t *clk_p)
 
 	if (!clk_p)
 		return CLK_ERR_BAD_PARAMETER;
+	if (clk_p->id == CLKA1_PLL0LS)
+		return 0;
 
 	switch (clk_p->id) {
 	case CLKA1_REF:
