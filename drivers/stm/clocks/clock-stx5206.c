@@ -489,6 +489,8 @@ static int clkgena_xable_pll(clk_t *clk_p, int enable)
 
 	if (!clk_p)
 		return CLK_ERR_BAD_PARAMETER;
+	if(clk_p->id == CLKA_PLL0LS)
+		return 0;
 	if (clk_p->id != CLKA_PLL0HS && clk_p->id != CLKA_PLL1)
 		return CLK_ERR_BAD_PARAMETER;
 
