@@ -144,7 +144,7 @@ int stmmac_close_ext_timer(void *timer_callb)
 {
 	struct sh_timer_callb *timer = timer_callb;
 
-	stmmac_tmu_stop(timer_callb);
+//	stmmac_tmu_stop(timer_callb);
 	sh_timer_unregister(timer->tmu_priv);
 	return 0;
 }

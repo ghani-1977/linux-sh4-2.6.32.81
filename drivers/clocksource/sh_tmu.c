@@ -444,8 +444,8 @@ struct sh_timer_callb *sh_timer_register(void *handler, void *data)
 	p->rate = clk_get_rate(p->clk) / 4;
 
 	p->tm.fnc->tmu_priv = p; /* hook to invoke the timer callbacks */
-	p->tm.fnc->timer_start = sh_timer_start;
-	p->tm.fnc->timer_stop = sh_timer_stop;
+	p->tm.fnc->timer_start = sh_tmu_enable;
+	p->tm.fnc->timer_stop = sh_tmu_disable;
 	p->tm.fnc->set_rate = sh_timer_set_rate;
 
 	return p->tm.fnc;
