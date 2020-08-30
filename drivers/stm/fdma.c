@@ -576,7 +576,7 @@ static int fdma_register_caps(struct fdma *fdma)
 static int fdma_run_initialise_sequence(struct fdma *fdma)
 {
 	fdma->llu_pool = dma_pool_create(fdma->name, NULL,
-			sizeof(struct fdma_llu_entry), 32, 0);
+			sizeof(struct fdma_llu_entry), 64, 0);
 
 	if (fdma->llu_pool == NULL) {
 		fdma_dbg(fdma, "%s Can't allocate dma_pool memory\n",

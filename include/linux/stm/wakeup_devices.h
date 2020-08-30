@@ -32,6 +32,7 @@ struct stm_wakeup_devices {
 	unsigned int stm_mac0_can_wakeup:1;	/* eth_phy_clk ~= 25 MHz */
 	unsigned int stm_mac1_can_wakeup:1;
 	unsigned int stm_phy_can_wakeup:1;
+	unsigned int eth_phy_can_wakeup:1;
 	unsigned int hdmi_cec:1;
 	unsigned int hdmi_hotplug:1;
 	unsigned int kscan:1;
@@ -43,6 +44,8 @@ struct stm_wakeup_devices {
 int stm_check_wakeup_devices(struct stm_wakeup_devices *dev_wk);
 
 int stm_get_wakeup_reason(void);
+int stm_retrieve_wakeup_reason(void);
+int stm_notify_wakeup_devices(struct stm_wakeup_devices *wkd);
 
 void stm_set_wakeup_reason(int wk_irq);
 #endif

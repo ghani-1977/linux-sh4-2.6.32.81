@@ -30,7 +30,7 @@
 #include "stm_hom.h"
 #include <linux/stm/poke_table.h>
 #include <linux/stm/synopsys_dwc_ddr32.h>
-
+#include <linux/stm/wakeup_devices.h>
 
 #define DDR3SS_REG		0xfde50000
 
@@ -41,7 +41,27 @@
 #define SBC_MBX				0xfe4b4000
 #define SBC_MBX_WRITE_STATUS(x)		(SBC_MBX + 0x4 + 0x4 * (x))
 
+#ifdef CONFIG_STM_LPM
+/*
+ * This vercor is used to translate the sbc_wake_reason_bitmap
+ * coming from the SBC to the interrupt number Linux uses
+ *
+ */
+int platform_lpm_to_irq[8] = {
+       ILC_IRQ(5),     /* IRB */
+       ILC_IRQ(31),    /* HDMI_CEC */
+       ILC_IRQ(49),    /* Kscan */
+       ILC_IRQ(22),    /* Wol */
+       ILC_IRQ(6),     /* RTC */
+       ILC_IRQ(43),    /* ASC */
+       ILC_IRQ(107),   /* HDMI_HotPlug */
+       0,              /* NMI (-2)?... */
+};
+#endif
+
+#ifndef CONFIG_PM_DEEP_STANDBY
 #define SBC_GPIO_PORT(_nr)		(0xfe610000 + (_nr) * 0x1000)
+#if defined(CONFIG_SH_ST_B2067) || defined(CONFIG_SH_ST_B2064) || defined(CONFIG_SH_ST_B2075)
 
 #ifdef CONFIG_SH_ST_B2064C_BOARD
 #define LMI_RET_GPIO_PORT		3
@@ -50,10 +70,20 @@
 #define LMI_RET_GPIO_PORT		3
 #define LMI_RET_GPIO_PIN		3
 #endif
+#endif
 
 #define LMI_RETENTION_PIN	stm_gpio(LMI_RET_GPIO_PORT, LMI_RET_GPIO_PIN)
 
 static unsigned long stxh205_hom_table[] __cacheline_aligned = {
+
+/* use sys config  reset bit#2 of sys_config169 address 0xfda50114*/
+UPDATE32(0xfda50114, ~(1 << 2), 0),
+
+/*check lmi status sys_status SYSTEM_STATUS154 @0xfda500D8 */
+/*check bit#2 set */
+
+WHILE_NE32(0xfda500D8, 0x4, 0),
+
 synopsys_ddr32_in_hom(DDR3SS_REG),
 
 /*
@@ -71,6 +101,7 @@ POKE32(SBC_MBX_WRITE_STATUS(0), 0x5),
 END_MARKER,
 
 };
+#endif /*CONFIG_PM_DEEP_STANDBY*/
 
 static void __iomem *early_console_base;
 static struct stm_wakeup_devices stxh205_wkd;
@@ -113,15 +144,16 @@ static int stxh205_hom_complete(void)
 	writel(1, 0xfda30000 + 0x60);	/* INTMSKCLR00 */
 
 	stm_restore_board(&stxh205_wkd);
-
+	stm_set_wakeup_reason(stm_retrieve_wakeup_reason());
 	return 0;
 }
 
 static struct stm_mem_hibernation stxh205_hom = {
-
+#ifndef CONFIG_PM_DEEP_STANDBY
 	.tbl_addr = (unsigned long)stxh205_hom_table,
 	.tbl_size = DIV_ROUND_UP(ARRAY_SIZE(stxh205_hom_table) *
 			sizeof(long), L1_CACHE_BYTES),
+#endif
 
 	.ops.begin = stxh205_hom_begin,
 	.ops.prepare = stxh205_hom_prepare,
@@ -131,7 +163,7 @@ static struct stm_mem_hibernation stxh205_hom = {
 static int __init hom_stxh205_setup(void)
 {
 	int ret;
-
+#ifndef CONFIG_PM_DEEP_STANDBY
 	ret = gpio_request(LMI_RETENTION_PIN, "LMI retention mode");
 	if (ret) {
 		pr_err("[STM]: [PM]: [HoM]: GPIO for retention mode"
@@ -140,13 +172,14 @@ static int __init hom_stxh205_setup(void)
 	};
 
 	gpio_direction_output(LMI_RETENTION_PIN, 1);
-
+#endif
 	ret = stm_hom_register(&stxh205_hom);
+#ifndef CONFIG_PM_DEEP_STANDBY
 	if (ret) {
 		gpio_free(LMI_RETENTION_PIN);
 		return ret;
 	}
-
+#endif
 	early_console_base = (void *)
 		ioremap(stm_asc_configured_devices[stm_asc_console_device]
 			->resource[0].start, 0x1000);

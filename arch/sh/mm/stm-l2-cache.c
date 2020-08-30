@@ -574,6 +574,7 @@ static void stm_l2_mode_write_through_to_copy_back(void)
 
 	l2ccr = readl(stm_l2_base + L2CCR);
 	l2ccr |= (1 << 1); /* CBE bit */
+	l2ccr |= (1 << 4); /* LAL bit */
 	writel(l2ccr, stm_l2_base + L2CCR);
 	wmb();
 }

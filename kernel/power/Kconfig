@@ -200,6 +200,15 @@ config HOM_TAG_VIRTUAL_ADDRESS
 	---help---
 	  Set the Absolute Virtual Address where the Hibernation
 
+config PM_DEEP_STANDBY
+	bool "Deep standby"
+	depends on HIBERNATION_ON_MEMORY && CPU_SUBTYPE_STXH205
+	default n
+	--help---
+	Enable the deep standby support. This technique will turn-off the chip
+	including memory. No kernel data will be saved on DDR before turning 
+	off the chip
+
 config HOM_DEBUG
 	bool "Hibernation on memory - Debug"
 	depends on HIBERNATION_ON_MEMORY

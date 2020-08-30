@@ -907,11 +907,16 @@ int pms_global_standby(enum pms_standby_e state)
 	return ret;
 }
 EXPORT_SYMBOL(pms_global_standby);
-
-#ifdef CONFIG_RTC_CLASS
+#ifndef CONFIG_STM_LPC
 #include <linux/rtc.h>
+#endif
+int stm_lpc_set(int enable, unsigned long long tick);
+
 int pms_set_wakeup_timers(unsigned long long second)
 {
+#ifdef CONFIG_STM_LPC
+	return stm_lpc_set(1, second);
+#else
 	static struct rtc_device *dev;
 	unsigned long secs_wake = 0;
 	struct rtc_wkalrm wake_time;
@@ -936,9 +941,9 @@ int pms_set_wakeup_timers(unsigned long long second)
 	rtc_set_alarm(dev, &wake_time);
 
 	return 0;
+#endif
 }
 EXPORT_SYMBOL(pms_set_wakeup_timers);
-#endif
 
 enum {
 	cmd_add_clk_constr,

@@ -415,6 +415,14 @@ config SH_ST_B2141
 	  Select SH_ST_B2141 if configuring for a
 	  STMicroelectronics STxH273 Reference Board.
 
+config SH_ST_B2108
+        bool "B2108: STxH205-OTT Reference board"
+        depends on CPU_SUBTYPE_STXH205
+        default n
+        help
+          Select SH_ST_B2108 if configuring for a
+          STMicroelectronics STxH205-OTT Reference Board.
+
 config SH_ST_CAB5197
 	bool "CAB5197: STx5197 CAB reference board"
 	depends on CPU_SUBTYPE_STX5197
@@ -794,6 +802,70 @@ config SH_ST_MB903
 	help
 	  Select SH_ST_MB903 if configuring for a
 	  STMicroelectronics STi7108M Reference Board.
+
+config SH_FORTIS_DP2010
+	bool "DP2010: Fortis DP2010 board"
+	depends on CPU_SUBTYPE_STXH205
+	default n
+	help
+	  Select SH_FORTIS_DP2010 if configuring for a
+	  Fortis DP2010 board.
+
+config SH_FORTIS_DP7000
+	bool "DP7000: Fortis DP7000 board"
+	depends on CPU_SUBTYPE_STXH205
+	default n
+	help
+	  Select SH_FORTIS_DP7000 if configuring for a
+	  Fortis DP7000 board.
+
+config SH_FORTIS_DP7001
+	bool "DP7001: Fortis DP7001 board"
+	depends on CPU_SUBTYPE_STXH205
+	default n
+	help
+	  Select SH_FORTIS_DP7001 if configuring for a
+	  Fortis DP7001 board.
+
+config SH_FORTIS_DP7050
+	bool "DP7050: Fortis DP7050 board"
+	depends on CPU_SUBTYPE_STXH205
+	default n
+	help
+	  Select SH_FORTIS_DP7050 if configuring for a
+	  Fortis DP7050 board.
+
+config SH_FORTIS_EP8000
+	bool "EP8000: Fortis EP8000 board"
+	depends on CPU_SUBTYPE_STXH205
+	default n
+	help
+	  Select SH_FORTIS_EP8000 if configuring for a
+	  Fortis EP8000 board.
+
+config SH_FORTIS_EPP8000
+	bool "EPP8000: Fortis EPP8000 board"
+	depends on CPU_SUBTYPE_STXH205
+	default n
+	help
+	  Select SH_FORTIS_EPP8000 if configuring for a
+	  Fortis EPP8000 board.
+
+config SH_FORTIS_FX6010
+	bool "FX6010: Fortis FX6010 board"
+	depends on CPU_SUBTYPE_STXH205
+	default n
+	help
+	  Select SH_FORTIS_FX6010 if configuring for a
+	  Fortis FX6010 board.
+
+config SH_FORTIS_GPV8000
+	bool "GPV8000: Fortis GPV8000 board"
+	depends on CPU_SUBTYPE_STXH205
+	default n
+	help
+	  Select SH_FORTIS_GPV8000 if configuring for a
+	  Fortis GPV8000 board.
 
 comment "ST Peripheral Boards"
 

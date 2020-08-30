@@ -27,27 +27,40 @@
 
 #define PCIE_DEFAULT_VAL	(PCIE_DEVICE_TYPE)
 
+struct stxh205_pcie_handle {
+	struct sysconf_field *pci_setup;
+	struct sysconf_field *miphy_reset;
+	struct sysconf_field *pcie_reset;
+	struct sysconf_field *pcie_clk_sel;
+};
+
 static void stxh205_pcie_init(void *handle)
 {
-	struct sysconf_field *sc = (struct sysconf_field *) handle;
+	struct stxh205_pcie_handle *hd = (struct stxh205_pcie_handle *) handle;
 
-	sysconf_write(sc, PCIE_DEFAULT_VAL);
+	sysconf_write(hd->miphy_reset, 0); /* Reset miphy */
+	sysconf_write(hd->pcie_reset, 0); /* Reset PCIe */
+	sysconf_write(hd->pcie_clk_sel, 1); /* Select 100MHz ext clock */
+	sysconf_write(hd->miphy_reset, 1); /* Release miphy */
+	sysconf_write(hd->pcie_reset, 1); /* Release PCIe */
+
+	sysconf_write(hd->pci_setup, PCIE_DEFAULT_VAL);
 
 	mdelay(1);
 }
 
 static void stxh205_pcie_enable_ltssm(void *handle)
 {
-	struct sysconf_field *sc = (struct sysconf_field *) handle;
+	struct stxh205_pcie_handle *hd = (struct stxh205_pcie_handle *) handle;
 
-	sysconf_write(sc, PCIE_DEFAULT_VAL | PCIE_APP_LTSSM_ENABLE);
+	sysconf_write(hd->pci_setup, PCIE_DEFAULT_VAL | PCIE_APP_LTSSM_ENABLE);
 }
 
 static void stxh205_pcie_disable_ltssm(void *handle)
 {
-	struct sysconf_field *sc = (struct sysconf_field *) handle;
+	struct stxh205_pcie_handle *hd = (struct stxh205_pcie_handle *) handle;
 
-	sysconf_write(sc, PCIE_DEFAULT_VAL);
+	sysconf_write(hd->pci_setup, PCIE_DEFAULT_VAL);
 }
 
 /* Ops to drive the platform specific bits of the interface */
@@ -103,13 +116,21 @@ static struct platform_device stxh205_pcie_device = {
 
 void __init stxh205_configure_pcie(struct stxh205_pcie_config *config)
 {
-	struct sysconf_field *sc;
+	struct stxh205_pcie_handle *handle;
 
-	sc = sysconf_claim(SYSCONF(447), 0, 5, "pcie");
+	handle = kmalloc(sizeof(*handle), GFP_KERNEL);
 
-	BUG_ON(!sc);
+	BUG_ON(!handle);
 
-	stxh205_plat_pcie_config.ops_handle = sc;
+	handle->pci_setup = sysconf_claim(SYSCONF(447), 0, 5, "pcie");
+	handle->miphy_reset = sysconf_claim(SYSCONF(460), 18, 18, "miphy");
+	handle->pcie_reset = sysconf_claim(SYSCONF(461), 0, 0, "pcie");
+	handle->pcie_clk_sel = sysconf_claim(SYSCONF(468), 0, 0, "pcie");
+
+	BUG_ON(!handle->pci_setup || !handle->miphy_reset || !handle->pcie_reset ||
+	    !handle->pcie_clk_sel);
+
+	stxh205_plat_pcie_config.ops_handle = handle;
 	stxh205_plat_pcie_config.reset_gpio = config->reset_gpio;
 	stxh205_plat_pcie_config.reset = config->reset;
 	/* There is only one PCIe controller on the stxh205 */

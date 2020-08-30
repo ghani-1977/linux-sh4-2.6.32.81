@@ -120,12 +120,6 @@ struct video_command {
 		struct {
 			__u32 data[16];
 		} raw;
-
-		struct {
-			unsigned int    option; /* really dvb_option_t but like this so don't modify kernel sources too much */
-			unsigned int    value;
-		} option;
-
 	};
 };
 

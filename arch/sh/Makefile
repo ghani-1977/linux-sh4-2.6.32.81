@@ -162,6 +162,7 @@ machdir-$(CONFIG_SH_ST_B2068)			+= mach-b2068
 machdir-$(CONFIG_SH_ST_B2069)			+= mach-b2069
 machdir-$(CONFIG_SH_ST_B2075)			+= mach-b2075
 machdir-$(CONFIG_SH_ST_B2076)			+= mach-b2076
+machdir-$(CONFIG_SH_ST_B2108)                   += mach-b2108
 machdir-$(CONFIG_SH_ST_B2141)			+= mach-b2141
 machdir-$(CONFIG_SH_ST_CAB5197)			+= mach-cab5197
 machdir-$(CONFIG_SH_ST_EUD7141)			+= mach-eud7141
@@ -203,6 +204,16 @@ machdir-$(CONFIG_SH_ST_7102ISDB)		+= mach-7102isdb
 machdir-$(CONFIG_SH_ST_MB837)			+= mach-mb837 mach-st
 machdir-$(CONFIG_SH_ST_MB839)			+= mach-mb839
 machdir-$(CONFIG_SH_ST_MB903)			+= mach-mb903
+
+# Fortis boards
+machdir-$(CONFIG_SH_FORTIS_DP2010)		+= mach-dp2010
+machdir-$(CONFIG_SH_FORTIS_DP7000)		+= mach-dp7000
+machdir-$(CONFIG_SH_FORTIS_DP7001)		+= mach-dp7001
+machdir-$(CONFIG_SH_FORTIS_DP7050)		+= mach-dp7050
+machdir-$(CONFIG_SH_FORTIS_EP8000)		+= mach-ep8000
+machdir-$(CONFIG_SH_FORTIS_EPP8000)		+= mach-epp8000
+machdir-$(CONFIG_SH_FORTIS_FX6010)		+= mach-fx6010
+machdir-$(CONFIG_SH_FORTIS_GPV8000)		+= mach-gpv8000
 
 ifneq ($(machdir-y),)
 core-y	+= $(addprefix arch/sh/boards/, \

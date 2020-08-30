@@ -505,6 +505,9 @@ static int clkgena_xable_pll(clk_t *clk_p, int enable)
 
 	if (!clk_p)
 		return CLK_ERR_BAD_PARAMETER;
+
+	if (clk_p->id == CLKA_PLL0LS)
+		return 0;
 	if (clk_p->id != CLKA_PLL0HS && clk_p->id != CLKA_PLL1)
 		return CLK_ERR_BAD_PARAMETER;
 
@@ -539,6 +542,9 @@ static int clkgena_enable(clk_t *clk_p)
 	if (!clk_p->parent)
 		/* Unsupported. Init must be called first. */
 		return CLK_ERR_BAD_PARAMETER;
+
+	if (clk_p->id == CLKA_REF)
+		return 0;
 
 	/* PLL power up */
 	if (clk_p->id >= CLKA_PLL0HS && clk_p->id <= CLKA_PLL1)
@@ -961,7 +967,9 @@ static int clkgenb_enable(clk_t *clk_p)
 	if (!clk_p)
 		return CLK_ERR_BAD_PARAMETER;
 
-	if (clk_p->id >= CLKB_FS0_CH1 && clk_p->id <= CLKB_FS1_CH4)
+	if (clk_p->id == CLKB_REF)
+		return 0;
+	else if (clk_p->id >= CLKB_FS0_CH1 && clk_p->id <= CLKB_FS1_CH4)
 		err = clkgenb_xable_fsyn(clk_p, 1);
 	else
 		err = clkgenb_xable_clock(clk_p, 1);
@@ -1102,14 +1110,23 @@ static int clkgenb_set_rate(clk_t *clk_p, unsigned long freq)
 		/* A parent is expected to these clocks */
 		return CLK_ERR_INTERNAL;
 
-	if ((clk_p->id >= CLKB_FS0_CH1) && (clk_p->id <= CLKB_FS1_CH4))
+	switch(clk_p->id) {
+	case CLKB_FS0_CH1 ... CLKB_FS1_CH4:
 		/* clkgenb_set_fsclock() is updating clk_p->rate */
 		return clkgenb_set_fsclock(clk_p, freq);
-
-	div = clk_p->parent->rate / freq;
-	err = clkgenb_set_div(clk_p, &div);
-	if (!err)
-		clk_p->rate = freq;
+	case CLKB_TMDS_HDMI ... CLKB_PIX_FROM_DVP:
+	case CLKB_150 ... CLKB_LPC :
+		div = clk_p->parent->rate / freq;
+		err = clkgenb_set_div(clk_p, &div);
+		if (!err)
+			clk_p->rate = freq;
+		break;
+	case CLKB_DVP ... CLKB_PP:
+		err = clkgenb_set_rate(clk_p->parent, freq);
+		break;
+	default:
+		return CLK_ERR_BAD_PARAMETER;
+	}
 
 	return err;
 }
@@ -1190,6 +1207,8 @@ static int clkgenb_set_div(clk_t *clk_p, unsigned long *div_p)
 
 	if (!clk_p)
 		return CLK_ERR_BAD_PARAMETER;
+	if (clk_p->id < CLKB_TMDS_HDMI || clk_p->id > CLKB_PIX_SD)
+		return CLK_ERR_BAD_PARAMETER;
 
 	/* the hw support specific divisor factor therefore
 	 * reject immediatelly a wrong divisor
@@ -1215,7 +1234,9 @@ static int clkgenb_set_div(clk_t *clk_p, unsigned long *div_p)
 	if (shift == 0xff)
 		return CLK_ERR_BAD_PARAMETER;
 
-	if (clk_p->id == CLKB_PIX_SD && clk_p->parent->id == CLKB_FS1_CH1)
+	/* Shift may be required for CKGB_DISPLAY_CFG reg */
+	if (clk_p->id == CLKB_PIX_SD && clk_p->parent->id == CLKB_FS1_CH1
+		&& *div_p != 1024)
 		shift += 2;
 
 	val = CLK_READ(CKGB_BASE_ADDRESS + reg);
@@ -1379,11 +1400,13 @@ static int clkgenb_recalc(clk_t *clk_p)
 		} else {
 			switch (displaycfg & 0x3) {
 			case 0:
-			case 3:
 				clk_p->rate = clk_p->parent->rate / 2;
 				break;
 			case 1:
 				clk_p->rate = clk_p->parent->rate / 4;
+				break;
+			case 3:
+				clk_p->rate = clk_p->parent->rate;
 				break;
 			}
 		}
@@ -1491,6 +1514,12 @@ static int clkgenb_recalc(clk_t *clk_p)
 	case CLKB_DSS:
 		clk_p->rate = clk_p->parent->rate;
 		if (!clkgenb_is_running(power_en, 0))
+			clk_p->rate = 0;
+		break;
+
+	case CLKB_150:
+		clk_p->rate = clk_p->parent->rate; /* Assuming div by 1 */
+		if (!clkgenb_is_running(power_en, 11))
 			clk_p->rate = 0;
 		break;
 
@@ -1841,7 +1870,10 @@ static int clkgenc_xable_fsyn(clk_t *clk_p, unsigned long enable)
 
 static int clkgenc_enable(clk_t *clk_p)
 {
-	return clkgenc_xable_fsyn(clk_p, 1);
+	if (clk_p->id == CLKC_REF)
+		return 0;
+	else
+		return clkgenc_xable_fsyn(clk_p, 1);
 }
 
 /* ========================================================================
@@ -1852,7 +1884,10 @@ static int clkgenc_enable(clk_t *clk_p)
 
 static int clkgenc_disable(clk_t *clk_p)
 {
-	return clkgenc_xable_fsyn(clk_p, 0);
+	if (clk_p->id == CLKC_REF)
+		return 0;
+	else
+		return clkgenc_xable_fsyn(clk_p, 0);
 }
 
 /******************************************************************************
@@ -2051,7 +2086,10 @@ static int clkgene_xable_clock(clk_t *clk_p, int enable)
 
 static int clkgene_enable(clk_t *clk_p)
 {
-	return clkgene_xable_clock(clk_p, 1);
+	if (clk_p->id == CLKE_REF)
+		return 0;
+	else
+		return clkgene_xable_clock(clk_p, 1);
 }
 
 /* ========================================================================
@@ -2062,7 +2100,10 @@ static int clkgene_enable(clk_t *clk_p)
 
 static int clkgene_disable(clk_t *clk_p)
 {
-	return clkgene_xable_clock(clk_p, 0);
+	if (clk_p->id == CLKE_REF)
+		return 0;
+	else
+		return clkgene_xable_clock(clk_p, 0);
 }
 
 /* ========================================================================

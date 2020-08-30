@@ -18,6 +18,7 @@
 #include <linux/platform_device.h>
 #include <linux/interrupt.h>
 #include <linux/delay.h>
+#include <linux/pm_runtime.h>
 #include <linux/stm/platform.h>
 #include <linux/firmware.h>
 #include "lpm_def.h"
@@ -31,6 +32,7 @@
 #define lpm_debug(fmt, ...)
 #endif
 
+#if 0
 enum stm_lpm_pio_level {
 	STM_LPM_PIO_LOW		= 0,
 	STM_LPM_PIO_HIGH	= 1 << 7
@@ -40,6 +42,7 @@ enum stm_lpm_pio_direction {
 	STM_LPM_PIO_INPUT	= 0,
 	STM_LPM_PIO_OUTPUT	= 1 << 5
 };
+#endif
 
 /**
  * stm_lpm_driver_data - Local struct of driver
@@ -67,7 +70,7 @@ enum stm_lpm_pio_direction {
  */
 
 struct stm_lpm_driver_data {
-	void * __iomem lpm_mem_base[3];
+	void * __iomem lpm_mem_base[2];
 	struct platform_device *pdev;
 	struct lpm_message fw_reply_msg;
 	struct lpm_message fw_request_msg;
@@ -79,12 +82,37 @@ struct stm_lpm_driver_data {
 	unsigned char glbtrans_id;
 	struct work_struct lpm_sbc_reply_work;
 	enum stm_lpm_sbc_state sbc_state;
+	struct delayed_work monitor_th;
+	struct platform_device *lpm_pdev;
+	stm_lpm_reset_notifier_fn user_fn;
+    struct sysconf_field *sc;
 };
 
 static struct stm_lpm_driver_data *lpm_drv;
 
+/* semaphore protection for SBC software watchdog */
+static struct semaphore sbc_health_sem;
+
+/* 
+ * struct to save SBC program on Host CPU 
+ * In case of SBC hang/crash we will use this prog 
+ * to reload SBC 
+*/
+struct segment_sbc {
+	void *data;
+	unsigned long size;
+	unsigned long offset;
+};
+static struct segment_sbc segment_pm[3];
+
+
 /* Work queue to process SBC firmware request */
 static void lpm_sbc_reply_worker(struct work_struct *work);
+/* to configure power pio*/
+static int lpm_config_power_pio(void);
+/* defines valid for Liege/Lille */
+#define ST40_IRQ_MUX 0xfd542200
+#define SBC_RESET_SYS_CONF_17 0xFE600044
 
 /**
  * lpm_send_big_message() - To send big message over SBC DMEM
@@ -193,6 +221,19 @@ int stm_lpm_setup_ir(u8 num_keys, struct stm_lpm_ir_keyinfo *ir_key_info)
 	return err;
 }
 EXPORT_SYMBOL(stm_lpm_setup_ir);
+/**
+ * stm_lpm_register_reset_callback - to register user callback
+ * @user_fn: user callback
+ *
+ * This function will configure user's callback for long press PIO
+ *
+ * Return - void
+ */
+void stm_lpm_register_reset_callback(stm_lpm_reset_notifier_fn user_fn)
+{
+	lpm_drv->user_fn = user_fn;
+}
+EXPORT_SYMBOL(stm_lpm_register_reset_callback);
 
 /**
  * stm_lpm_get_wakeup_info() - To get additional info about wakeup device
@@ -291,6 +332,10 @@ int stm_lpm_reset(enum stm_lpm_reset_type reset_type)
 		.msg = &msg,
 		.msg_size = 1
 	};
+	/*lock health thread as reset is requested on SBC */
+	/* otherwise health thread may cause resetting again*/
+	down_interruptible(&sbc_health_sem);
+	/* There will be error in case SBC firmware is not loaded*/
 	err = lpm_exchange_msg(&send_msg, NULL);
 	if (err == 0 && reset_type == STM_LPM_SBC_RESET) {
 		/* Set the firmware as booting */
@@ -308,6 +353,7 @@ int stm_lpm_reset(enum stm_lpm_reset_type reset_type)
 			i++;
 		} while (i != 10);
 	}
+	up(&sbc_health_sem);
 	return err;
 }
 EXPORT_SYMBOL(stm_lpm_reset);
@@ -347,6 +393,8 @@ static irqreturn_t lpm_isr(int this_irq, void *params)
 	 * SBC will always be in little endian mode
 	 * if host is in big endian then reverse int
 	 */
+	lpm_drv_p->reply_from_sbc = 0;
+
 	for (i = 0; i < 4; i++) {
 		msg_read[i] = lpm_read32(lpm_drv_p, 1, MBX_READ_STATUS1 + i*4);
 		msg_read[i] = cpu_to_le32(msg_read[i]);
@@ -355,7 +403,7 @@ static irqreturn_t lpm_isr(int this_irq, void *params)
 	msg_p = (char *) &msg_read[0];
 	/* Check if reply from SBC or request from SBC */
 	if ((*msg_p & LPM_MSG_REPLY) ||
-	   ((*msg_p && LPM_MSG_BKBD_READ))) {
+	   ((*msg_p == LPM_MSG_BKBD_READ))) {
 		msg = &lpm_drv_p->fw_reply_msg;
 		lpm_drv_p->reply_from_sbc = 1;
 	} else {
@@ -364,14 +412,15 @@ static irqreturn_t lpm_isr(int this_irq, void *params)
 	/* Copy mailbox data into local structure */
 	memcpy(msg, &msg_read, 16);
 
+	/* Clear mail box */
+	lpm_write32(lpm_drv_p, 1, MBX_READ_CLR_STATUS1, 0xFFFFFFFF);
+
 	/* Signal work queue or API caller depending upon message from SBC */
 	if (lpm_drv_p->reply_from_sbc == 1)
 		wake_up_interruptible(&lpm_drv_p->stm_lpm_wait_queue);
 	else
 		schedule_work(&lpm_drv_p->lpm_sbc_reply_work);
 
-	 /* Clear mail box */
-	lpm_write32(lpm_drv_p, 1, MBX_READ_CLR_STATUS1, 0xFFFFFFFF);
 	return IRQ_HANDLED;
 }
 
@@ -406,6 +455,23 @@ static void lpm_sbc_reply_worker(struct work_struct *work)
 		msg[4] = LPM_BUILD_YEAR;
 		msg_size = 5;
 		msg_id = LPM_MSG_VER | LPM_MSG_REPLY;
+	} else if (msg_p->command_id == LPM_MSG_FP_PIO_RESET) {
+		int err = 0;
+		if (lpm_drv->user_fn != NULL) {
+			err = lpm_drv->user_fn();
+			if (err >= 0) {
+				memcpy(&msg[2], &err, 4);
+				msg_size = 6;
+				msg_id = LPM_MSG_FP_PIO_RESET | LPM_MSG_REPLY;
+			} else {
+				lpm_debug("reset callback error reported\n");
+				return;
+			}
+		} else {
+		/* In case no user fn present then don't ack it */
+			lpm_debug("no reset callback\n");
+			return;
+		}
 	} else {
 		/* Send reply to SBC as error*/
 		msg[0] = msg_p->command_id;
@@ -654,8 +720,25 @@ static int lpm_load_segment(struct stm_lpm_driver_data *lpm_drv_p,
 
 	memcpy_toio(lpm_drv_p->lpm_mem_base[0] + offset,
 		data + phdr->p_offset, size);
+	/*
+	 * Save code and prog of SBC for restoration purpose
+	 * Save the segment in private datas
+	 */
+	lpm_debug("sbc id %x, size %x, offset %x pointer %x \n", (u32)i, (u32)size,
+	(u32)offset, (u32)(data + phdr->p_offset));
+	segment_pm[i].size = size;
+	segment_pm[i].offset = offset;
+	segment_pm[i].data = kmalloc(size, GFP_KERNEL);
+
+	if (!segment_pm[i].data)
+		return -ENOMEM;
+
+	memcpy(segment_pm[i].data, data + phdr->p_offset, size);
+
 	return 0;
 }
+
+extern int stm_lpm_gpio_init(void); 
 
 static int lpm_config_power_pio(void)
 {
@@ -739,11 +822,13 @@ static int lpm_load_fw(const struct firmware *fw,
 			lpm_load_segment(lpm_drv_p, elfinfo, i);
 
 	/* Initialize sbc lpm */
-	i = readl((u32)lpm_drv_p->lpm_mem_base[2] + SBC_CONFIG_OFFSET);
-	i |= 0x1;
-	writel(i, (u32)lpm_drv_p->lpm_mem_base[2] + SBC_CONFIG_OFFSET);
-	kfree((void *)elfinfo);
+	sysconf_write(lpm_drv_p->sc, 1);
+    kfree((void *)elfinfo);
 
+	/*Set the firmware as booting */
+	mutex_lock(&lpm_drv->msg_protection_mutex);
+	lpm_drv_p->sbc_state = STM_LPM_SBC_BOOT;
+	mutex_unlock(&lpm_drv->msg_protection_mutex);
 	/* Wait till 1 second to get response from firmware */
 	i = 0;
 	do {
@@ -753,7 +838,8 @@ static int lpm_load_fw(const struct firmware *fw,
 			break;
 		i++;
 	} while (i != 10);
-	if (err == 0) {
+	if (err == 0)
+	{
 		err = stm_lpm_get_version(&driver_ver, &fw_ver);
 		if (likely(err == 0))
 			lpm_drv_p->fw_major_ver = fw_ver.major_comm_protocol;
@@ -762,7 +848,27 @@ static int lpm_load_fw(const struct firmware *fw,
 			pr_err("stm_lpm: Error while configuring gpio_power\n");
 		platform_device_register_data(&lpm_drv_p->pdev->dev,
 			"stm-rtc-sbc", 0, NULL, 0);
+		printk ("LPM: firmware loaded ver %d.%d%d (%02d-%02d-20%02d)\n", 
+					fw_ver.major_soft,
+					fw_ver.minor_soft,
+					fw_ver.patch_soft,
+					fw_ver.day,
+					fw_ver.month,
+					fw_ver.year);
 	}
+	/* now firmware is loaded inform SBC about wake up PIO */
+	err = lpm_config_power_pio();
+	/*if firmware loaded successfully then start health thread*/
+	if (err == 0)
+	{
+		up(&sbc_health_sem);
+		schedule_delayed_work(&lpm_drv_p->monitor_th, HZ * 2);
+	}
+#ifdef CONFIG_STM_LPM_HDMI_HPD
+	err = stm_lpm_gpio_init();
+	if (err < 0)
+		lpm_debug("LPM:invalid HDMI PIO configuration");
+#endif    
 	/* We do not return error if caused by SBC communication */
 	return 1;
 }
@@ -787,6 +893,13 @@ static int lpm_load_firmware(struct platform_device *pdev)
 	/* was the string truncated? */
 	BUG_ON(result >= sizeof(lpm_drv_p->fw_name));
 
+
+	if (stm_lpm_get_fw_state(&lpm_drv_p->sbc_state) < 0)
+		lpm_debug(" %s firmware not loaded\n", __func__);
+	else {
+		lpm_debug("firmware already loaded\n");
+		return 0;
+	}
 	lpm_debug("LPM: Requesting Firmware (%s)...\n",
 		lpm_drv_p->fw_name);
 
@@ -795,6 +908,113 @@ static int lpm_load_firmware(struct platform_device *pdev)
 			(void *)lpm_load_fw);
 
 	return err;
+}
+static void lpm_reload_firmware(int reload_sbc_fw)
+{
+	int i;
+	const struct firmware *sbc_fw;
+	if(reload_sbc_fw)
+	{
+		struct ELF64_info *elfinfo = NULL;
+		request_firmware(&sbc_fw,"lpm_fwSTxH205.elf",
+		&lpm_drv->lpm_pdev->dev); 
+		lpm_debug("LPM: Again Found sbc f/w \n");
+		elfinfo = (struct ELF64_info *)ELF64_initFromMem((uint8_t *)sbc_fw->data,
+				sbc_fw->size, 0);
+		if (elfinfo == NULL)
+		{
+			printk("elfinfo reload fw error \n");
+			return ;
+		}	
+		/* free already allocated memory for firmware*/
+		for(i=0; i<3;i++) 
+				kfree(segment_pm[i].data);
+
+		for (i = 0; i < elfinfo->header->e_phnum; i++)
+			if (elfinfo->progbase[i].p_type == PT_LOAD)
+				lpm_load_segment(lpm_drv, elfinfo, i);
+		kfree(elfinfo);
+		release_firmware(sbc_fw);	
+	}
+	else 
+	{
+		for (i = 0; i < 3; ++i)
+		memcpy_toio(lpm_drv->lpm_mem_base + segment_pm[i].offset,
+				segment_pm[i].data,
+				segment_pm[i].size);
+	}
+	lpm_debug("Start SBC now \n");
+	sysconf_write(lpm_drv->sc, 1);
+    lpm_write32(lpm_drv, 1, MBX_INT_SET_ENABLE, 0xFF);
+	lpm_config_power_pio();
+}
+
+extern struct device	*asc_dev;
+extern struct device	*i2c_devices[];
+
+static void lpm_reset_and_reload_firmware(int reload_fw)
+{
+	int i, count;
+	lpm_debug(" Start setting of SBC  \n"); 
+	/*stop sbc cpu*/
+	lpm_debug("stopping SBC CPU  \n");
+    sysconf_write(lpm_drv->sc, 0);
+
+	/*This is LPM reset use case, for fw reset or sbc hang*/
+	/* critical section ... */
+	//lock_kernel();
+	
+	writel(0, ST40_IRQ_MUX);
+	i = readl((u32)SBC_RESET_SYS_CONF_17) ;
+	pm_runtime_suspend(asc_dev);
+	/*i2c devices*/
+	for(count=0 ; count <6; count++)
+	{
+		if(i2c_devices[count])
+		pm_runtime_suspend(i2c_devices[count]);
+	}	
+	i &= 0xFFFFFFFB;
+	writel (i, (u32)SBC_RESET_SYS_CONF_17);
+	i = readl((u32)SBC_RESET_SYS_CONF_17);
+	i |= 0x4;
+	writel (i, (u32)SBC_RESET_SYS_CONF_17);
+	i = readl((u32)SBC_RESET_SYS_CONF_17) ;
+	pm_runtime_resume(asc_dev);
+
+	/*i2c devices*/
+	for(count=0 ; count <6; count++)
+	{
+		if(i2c_devices[count])
+		pm_runtime_resume(i2c_devices[count]);
+	}
+	//unlock_kernel(); 
+	lpm_reload_firmware(reload_fw); 
+} 
+
+int stm_lpm_reload_sbc_firmware(void)
+{
+	down_interruptible(&sbc_health_sem);
+	lpm_reset_and_reload_firmware(1);
+	up(&sbc_health_sem);
+	return 0; 
+}
+EXPORT_SYMBOL(stm_lpm_reload_sbc_firmware);
+
+static void lpm_sbc_health_task(struct work_struct *work)
+{
+#ifdef CONFIG_STM_LPM_SBC_SOFT_WDT
+	enum stm_lpm_sbc_state sbc_state;		
+	int err;	
+	down_interruptible(&sbc_health_sem);
+	err = stm_lpm_get_fw_state(&sbc_state);	
+	if(err < 0 || sbc_state!= STM_LPM_SBC_RUNNING)
+	{	
+		lpm_reset_and_reload_firmware(0);
+	}
+	up(&sbc_health_sem);
+	schedule_delayed_work(&lpm_drv->monitor_th, HZ * 2);
+#endif 
+
 }
 
 /**
@@ -821,7 +1041,7 @@ static int __init stm_lpm_probe(struct platform_device *pdev)
 
 	lpm_drv->pdev = pdev;
 
-	for (count = 0; count < 3; count++) {
+	for (count = 0; count < 2; count++) {
 		res = platform_get_resource(pdev, IORESOURCE_MEM, count);
 		if (!res) {
 			err = -ENODEV;
@@ -855,16 +1075,22 @@ static int __init stm_lpm_probe(struct platform_device *pdev)
 		goto free_and_exit;
 	}
 	if (devm_request_irq(&pdev->dev, res->start, lpm_isr,
-			IRQF_DISABLED, "stlmp", (void *)lpm_drv) < 0) {
+			IRQF_DISABLED, "stm-lpm", (void *)lpm_drv) < 0) {
 		pr_err("%s: Request stm lpm irq not done\n", __func__);
 		err = -ENODEV;
 		goto free_and_exit;
 	}
 
+    lpm_drv->sc = sysconf_claim(4, 0, 0, 0, "LPM_SW_START");
+    BUG_ON(!lpm_drv->sc);
+
 	init_waitqueue_head(&lpm_drv->stm_lpm_wait_queue);
 
 	mutex_init(&lpm_drv->msg_protection_mutex);
-
+	/*start SBC health thread*/
+	sema_init(&sbc_health_sem, 0);
+	INIT_DELAYED_WORK(&lpm_drv->monitor_th,lpm_sbc_health_task);
+	 
 	/* stm lpm does not need dedicate work queue so use default queue */
 	INIT_WORK(&lpm_drv->lpm_sbc_reply_work, lpm_sbc_reply_worker);
 

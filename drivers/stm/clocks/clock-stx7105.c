@@ -491,7 +491,7 @@ static int clkgena_xable_pll(clk_t *clk_p, int enable)
 
 	if (!clk_p)
 		return CLK_ERR_BAD_PARAMETER;
-
+	
 	if(clk_p->id == CLKA_PLL0LS)
 		return 0;
 
@@ -534,9 +534,13 @@ static int clkgena_enable(clk_t *clk_p)
 	if (clk_p->id == CLKA_REF)
 		return CLK_ERR_FEATURE_NOT_SUPPORTED;
 
+        if (clk_p->id == CLKA_REF)
+		return 0; 
+
 	/* PLL power up */
 	if (clk_p->id >= CLKA_PLL0HS && clk_p->id <= CLKA_PLL1)
 		return clkgena_xable_pll(clk_p, 1);
+
 
 	err = clkgena_set_parent(clk_p, clk_p->parent);
 	/* clkgena_set_parent() is performing also a recalc() */
@@ -1056,6 +1060,7 @@ static int clkgenb_set_parent(clk_t *clk_p, clk_t *parent_p)
 			set = 0x3 << 2;
 		else
 			reset = 1 << 3;
+		reg = CKGB_BASE_ADDRESS + CKGB_FS_SELECT;
 		break;
 
 	case CLKB_656_1:
@@ -1866,6 +1871,9 @@ static int clkgenc_xable_fsyn(clk_t *clk_p, unsigned long enable)
 
 	if (!clk_p)
 		return CLK_ERR_BAD_PARAMETER;
+	/* Ti hanndle parent - child r counters for gen-c */
+	if(clk_p->id == CLKC_REF)
+		return 0; 
 	if (clk_p->id < CLKC_FS0_CH1 || clk_p->id > CLKC_FS0_CH4)
 		return CLK_ERR_BAD_PARAMETER;
 
@@ -1975,7 +1983,7 @@ static int clkgend_identify_parent(clk_t *clk_p)
 
 	if (clk_p->id == CLKD_REF) {
 		sel = SYSCONF_READ(SYS_CFG, 40, 0, 0);
-		if (sel)
+		if (!sel)
 			clk_p->parent = &clk_clocks[CLK_SYS];
 		else
 			clk_p->parent = &clk_clocks[CLK_SYSALT];
@@ -2069,7 +2077,7 @@ static int clkgene_identify_parent(clk_t *clk_p)
 		return CLK_ERR_BAD_PARAMETER;
 
 	sel = SYSCONF_READ(SYS_CFG, 40, 2, 2);
-	if (sel)
+	if (!sel)
 		clk_p->parent = &clk_clocks[CLK_SYS];
 	else
 		clk_p->parent = &clk_clocks[CLK_SYSALT];

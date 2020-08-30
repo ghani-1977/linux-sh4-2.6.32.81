@@ -137,6 +137,7 @@ int stm_lpm_set_wakeup_device(u16 devices)
 	if (lpm_fw_proto_version() >= 1) {
 		struct stm_lpm_adv_feature feature;
 		feature.feature_name = STM_LPM_WU_TRIGGERS;
+	devices |= 3 << 8;
 		put_unaligned_le16(devices, feature.params.set_params);
 		return stm_lpm_set_adv_feature(1, &feature);
 	} else {
@@ -417,7 +418,143 @@ int stm_lpm_get_adv_feature(unsigned char all_features,
 		msg = 1;
 	err = lpm_exchange_msg(&send_msg, &response);
 	if (likely(err == 0))
-		memcpy(features->params.get_params, response.msg_data, 6);
+		memcpy(features->params.get_params, response.msg_data, 10);
 	return err;
 }
 EXPORT_SYMBOL(stm_lpm_get_adv_feature);
+
+int stm_lpm_get_standby_time(u32 *time)
+{
+	int err;
+	struct stm_lpm_adv_feature  feature = {0};
+	err = stm_lpm_get_adv_feature(0, &feature);
+	if (likely(err == 0)) {
+		memcpy((char*)time, &feature.params.get_params[6], 4);
+	}
+	return err;
+}
+EXPORT_SYMBOL(stm_lpm_get_standby_time);
+/**
+ * stm_lpm_setup_fp_pio - To setup frontpanel long press GPIO
+ * @pio_setting:		PIO data
+ * @long_press_delay:		Delay to detect long presss
+ * @default_reset_delay:	Default delay to do SOC reset
+ *
+ * This function will inform SBC about long press GPIO and its delays
+ *
+ * Return - 0 on success
+ * Return - negative error code on failure.
+ */
+int stm_lpm_setup_fp_pio(struct stm_lpm_pio_setting *pio_setting,
+			u32 long_press_delay, u32 default_reset_delay)
+{
+	char msg[14] = {0};
+	int err = 0;
+	struct lpm_message response;
+	struct lpm_internal_send_msg send_msg = {
+		.command_id = LPM_MSG_SET_PIO,
+		.msg = msg,
+		.msg_size = 14
+	};
+	if (unlikely(pio_setting == NULL || (pio_setting->pio_direction
+		 && pio_setting->interrupt_enabled) ||
+		 pio_setting->pio_use != STM_LPM_PIO_FP_PIO))
+		return -EINVAL;
+	msg[0] = pio_setting->pio_bank;
+	pio_setting->pio_pin &= NIBBLE_MASK;
+	msg[1] = pio_setting->pio_level << PIO_LEVEL_SHIFT |
+	pio_setting->interrupt_enabled <<  PIO_IT_SHIFT |
+	pio_setting->pio_direction << PIO_DIRECTION_SHIFT |
+	pio_setting->pio_pin;
+	msg[2] = pio_setting->pio_use;
+	/*msg[3,4,5] are reserved */
+	memcpy(&msg[6], &long_press_delay, 4);
+	memcpy(&msg[10], &default_reset_delay, 4);
+	err = lpm_exchange_msg(&send_msg, &response);
+	return err;
+}
+EXPORT_SYMBOL(stm_lpm_setup_fp_pio);
+
+/**
+ * stm_lpm_setup_power_on_delay - To setup delay on wakeup
+ * @de_bounce_delay:	This is button de bounce delay.
+ * @dc_stability_delay:	this is DC stability delay
+ *
+ * This function will inform SBC about delays on detecting valid wakeup
+ * If this is not called, SBC will use default delay
+ *
+ * Return - 0 on success
+ * Return - negative error code on failure.
+ */
+int stm_lpm_setup_power_on_delay(u16 de_bounce_delay,
+				u16 dc_stable_delay)
+{
+	struct stm_lpm_adv_feature feature;
+	feature.feature_name = STM_LPM_DE_BOUNCE;
+	put_unaligned_le16(de_bounce_delay, feature.params.set_params);
+	stm_lpm_set_adv_feature(1, &feature);
+	feature.feature_name = STM_LPM_DC_STABLE;
+	put_unaligned_le16(dc_stable_delay, feature.params.set_params);
+	return stm_lpm_set_adv_feature(1, &feature);
+}
+EXPORT_SYMBOL(stm_lpm_setup_power_on_delay);
+
+/**
+ * stm_lpm_set_cec_addr - to set CEC address for SBC
+ * @addr:	CEC's physical and logical address
+ *
+ * This function will inform SBC about CEC phy and logical addresses
+ *
+ * Return - 0 on success
+ * Return - negative error code on failure.
+ */
+int stm_lpm_set_cec_addr(struct stm_lpm_cec_address *addr)
+{
+	char msg[4] = {0};
+	struct lpm_message response;
+	struct lpm_internal_send_msg send_msg = {
+		.command_id = LPM_MSG_CEC_ADDR,
+		.msg = msg,
+		.msg_size = 4
+	};
+	if (unlikely(addr == NULL))
+		return -EINVAL;
+	put_unaligned_le16(addr->phy_addr, msg);
+	put_unaligned_le16(addr->logical_addr, &msg[2]);
+	return lpm_exchange_msg(&send_msg, &response);
+}
+EXPORT_SYMBOL(stm_lpm_set_cec_addr);
+
+/**
+ * stm_lpm_cec_config - configure SBC for CEC WU or custom message
+ * @use:	WU reason or custom message
+ * @params: Data associated with use
+ *
+ * This function will inform SBC about CEC WU or custom message
+ *
+ * Return - 0 on success
+ * Return - negative error code on failure.
+ */
+int stm_lpm_cec_config(enum stm_lpm_cec_select use,
+			union stm_lpm_cec_params *params)
+{
+	char msg[14] = {0};
+	struct lpm_message response;
+	struct lpm_internal_send_msg send_msg = {
+		.command_id = LPM_MSG_CEC_PARAMS,
+		.msg = msg,
+		.msg_size = 14
+	};
+	if (unlikely(NULL == params))
+		return -EINVAL;
+	msg[0] = use;
+	if (use == STM_LPM_CONFIG_CEC_WU_REASON) {
+		msg[1] = params->cec_wu_reasons;
+	} else {
+		msg[2] = params->cec_msg.size;
+		memcpy((msg+3), &params->cec_msg.opcode, msg[2]);
+	}
+	return lpm_exchange_msg(&send_msg, &response);
+}
+EXPORT_SYMBOL(stm_lpm_cec_config);
+

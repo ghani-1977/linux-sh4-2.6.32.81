@@ -422,6 +422,18 @@ config RTL8187
 
 # If possible, automatically enable LEDs for RTL8187.
 
+config RTL8188EUS
+	tristate "Realtek 8188EUS & RTL8189ES USB WiFi"
+	depends on MAC80211 && USB && WLAN_80211
+	---help---
+	  Help message of RTL8188EU
+	  
+config RTL8188CU
+	tristate "Realtek 8188CU USB WiFi"
+	depends on MAC80211 && USB && WLAN_80211
+	---help---
+	  Help message of RTL8188CU
+	  
 config RTL8187_LEDS
 	bool
 	depends on RTL8187 && MAC80211_LEDS && (LEDS_CLASS = y || LEDS_CLASS = RTL8187)

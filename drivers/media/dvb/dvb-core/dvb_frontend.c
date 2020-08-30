@@ -883,8 +883,6 @@ static int dvb_frontend_clear_cache(struct dvb_frontend *fe)
 		fe->dtv_property_cache.layer[i].segment_count = -1;
 	}
 
-	fe->dtv_property_cache.stream_id = -1;
-
 	return 0;
 }
 
@@ -1034,8 +1032,7 @@ static struct dtv_cmds_h dtv_cmds[] = {
 	_DTV_CMD(DTV_ISDBT_LAYERC_SEGMENT_COUNT, 0, 0),
 	_DTV_CMD(DTV_ISDBT_LAYERC_TIME_INTERLEAVING, 0, 0),
 
-	_DTV_CMD(DTV_STREAM_ID, 1, 0),
-	_DTV_CMD(DTV_DVBT2_PLP_ID, 1, 0),
+	_DTV_CMD(DTV_ISDBS_TS_ID, 1, 0),
 
 	/* Get */
 	[DTV_DISEQC_SLAVE_REPLY] = {
@@ -1251,9 +1248,10 @@ static void dtv_property_adv_params_sync(struct dvb_frontend *fe)
 		break;
 	}
 
-	/* Fake out a generic DVB-T request so we pass validation in the ioctl */
-	if ((c->delivery_system == SYS_ISDBT) ||
-	    (c->delivery_system == SYS_DVBT2)) {
+	if(c->delivery_system == SYS_ISDBT) {
+		/* Fake out a generic DVB-T request so we pass validation in the ioctl */
+		p->frequency = c->frequency;
+		p->inversion = c->inversion;
 		p->u.ofdm.constellation = QAM_AUTO;
 		p->u.ofdm.code_rate_HP = FEC_AUTO;
 		p->u.ofdm.code_rate_LP = FEC_AUTO;
@@ -1425,11 +1423,8 @@ static int dtv_property_process_get(struct dvb_frontend *fe,
 	case DTV_ISDBT_LAYERC_TIME_INTERLEAVING:
 		tvp->u.data = fe->dtv_property_cache.layer[2].interleaving;
 		break;
-	case DTV_STREAM_ID:
-		tvp->u.data = fe->dtv_property_cache.stream_id;
-		break;
-	case DTV_DVBT2_PLP_ID:
-		tvp->u.data = fe->dtv_property_cache.stream_id;
+	case DTV_ISDBS_TS_ID:
+		tvp->u.data = fe->dtv_property_cache.isdbs_ts_id;
 		break;
 	default:
 		r = -1;
@@ -1582,11 +1577,8 @@ static int dtv_property_process_set(struct dvb_frontend *fe,
 	case DTV_ISDBT_LAYERC_TIME_INTERLEAVING:
 		fe->dtv_property_cache.layer[2].interleaving = tvp->u.data;
 		break;
-	case DTV_STREAM_ID:
-		fe->dtv_property_cache.stream_id = tvp->u.data;
-		break;
-	case DTV_DVBT2_PLP_ID:
-		fe->dtv_property_cache.stream_id = tvp->u.data;
+	case DTV_ISDBS_TS_ID:
+		fe->dtv_property_cache.isdbs_ts_id = tvp->u.data;
 		break;
 	default:
 		r = -1;

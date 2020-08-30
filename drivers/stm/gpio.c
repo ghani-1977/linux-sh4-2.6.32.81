@@ -31,6 +31,7 @@
 #include "reg_pio.h"
 
 
+#define CONFIG_STPIO
 
 struct stpio_pin {
 #ifdef CONFIG_STPIO
@@ -264,9 +265,7 @@ static void stm_gpio_irq_chip_disable(unsigned int pin_irq)
 	unsigned gpio = irq_to_gpio(pin_irq);
 	int port_no = stm_gpio_port(gpio);
 	int pin_no = stm_gpio_pin(gpio);
-
 	pr_debug("disabling pin %d\n", pin_no);
-
 	set__PIO_CLR_PMASK__CLR_PMASK__CLEAR(stm_gpio_bases[port_no], pin_no);
 }
 
@@ -338,6 +337,8 @@ static struct irq_chip stm_gpio_irq_chip = {
 	.mask		= stm_gpio_irq_chip_disable,
 	.mask_ack	= stm_gpio_irq_chip_disable,
 	.unmask		= stm_gpio_irq_chip_enable,
+        /* STSDK: Need this for STPIO */
+	.enable		= stm_gpio_irq_chip_enable,
 	.set_type	= stm_gpio_irq_chip_type,
 	.set_wake	= stm_gpio_irq_chip_wake,
 };
@@ -565,11 +566,18 @@ int stpio_flagged_request_irq(struct stpio_pin *pin, int comp,
 	pin->dev = dev;
 
 	owner = stm_pad_get_gpio_owner(stm_gpio(pin->port_no, pin->pin_no));
-	set_irq_type(irq, comp ? IRQ_TYPE_LEVEL_LOW : IRQ_TYPE_LEVEL_HIGH);
+	if(flags & IRQ_WAKEUP)
+		set_irq_type(irq, comp ? IRQF_TRIGGER_FALLING:IRQF_TRIGGER_RISING);
+	else
+		set_irq_type(irq, comp ? IRQ_TYPE_LEVEL_LOW : IRQ_TYPE_LEVEL_HIGH);
 	result = request_irq(irq, stpio_irq_wrapper, 0, owner, pin);
 	BUG_ON(result);
 
-	if (flags & IRQ_DISABLED) {
+	if(flags & IRQ_WAKEUP) {
+                enable_irq_wake(irq);
+        }
+
+	else if (flags & IRQ_DISABLED) {
 		/* This is a race condition waiting to happen... */
 		disable_irq(irq);
 	}
@@ -667,7 +675,7 @@ static void stm_gpio_dbg_show(struct seq_file *s, struct gpio_chip *chip)
 			break;
 		default:
 			/* Should never get here... */
-			WARN_ON(1);
+			__WARN();
 			direction = "unknown configuration";
 			break;
 		}
@@ -709,7 +717,7 @@ static void stm_gpio_dbg_show(struct seq_file *s, struct gpio_chip *chip)
 					trigger = "level-low";
 					break;
 				default:
-					WARN_ON(1);
+					__WARN();
 					trigger = "unknown";
 					break;
 				}

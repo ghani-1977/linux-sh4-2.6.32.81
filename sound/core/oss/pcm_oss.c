@@ -219,8 +219,6 @@ static int snd_pcm_hw_param_mask(struct snd_pcm_substream *pcm,
 	return 0;
 }
 
-EXPORT_SYMBOL_GPL(snd_pcm_hw_param_mask);
-
 static int _snd_pcm_hw_param_min(struct snd_pcm_hw_params *params,
 				 snd_pcm_hw_param_t var, unsigned int val,
 				 int dir)
@@ -279,8 +277,6 @@ static int snd_pcm_hw_param_min(struct snd_pcm_substream *pcm,
 	}
 	return snd_pcm_hw_param_value_min(params, var, dir);
 }
-
-EXPORT_SYMBOL_GPL(_snd_pcm_hw_param_min);
 
 static int _snd_pcm_hw_param_max(struct snd_pcm_hw_params *params,
 				 snd_pcm_hw_param_t var, unsigned int val,
@@ -471,8 +467,6 @@ static int snd_pcm_hw_param_near(struct snd_pcm_substream *pcm,
 	return v;
 }
 
-EXPORT_SYMBOL_GPL(snd_pcm_hw_param_near);
-
 static int _snd_pcm_hw_param_set(struct snd_pcm_hw_params *params,
 				 snd_pcm_hw_param_t var, unsigned int val,
 				 int dir)
@@ -549,8 +543,6 @@ static int snd_pcm_hw_param_set(struct snd_pcm_substream *pcm,
 	return snd_pcm_hw_param_value(params, var, NULL);
 }
 
-EXPORT_SYMBOL_GPL(snd_pcm_hw_param_set);
-
 static int _snd_pcm_hw_param_setinteger(struct snd_pcm_hw_params *params,
 					snd_pcm_hw_param_t var)
 {
@@ -562,9 +554,7 @@ static int _snd_pcm_hw_param_setinteger(struct snd_pcm_hw_params *params,
 	}
 	return changed;
 }
-
-EXPORT_SYMBOL_GPL(_snd_pcm_hw_param_setinteger);
-
+	
 /*
  * plugin
  */

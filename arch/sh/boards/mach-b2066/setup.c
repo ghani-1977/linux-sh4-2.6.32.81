@@ -27,6 +27,7 @@
 #include <linux/mtd/physmap.h>
 #include <linux/spi/flash.h>
 #include <linux/spi/spi_gpio.h>
+#include <linux/rtl8367.h>
 #include <asm/irq-ilc.h>
 
 /*
@@ -72,6 +73,8 @@
 #define B2066_PIO_GMII0_NOTRESET stm_gpio(20, 0)
 #define B2066_PIO_GMII1_NOTRESET stm_gpio(15, 4)
 #define B2066_PIO_GMII1_PHY_CLKOUTNOTTX_CLK_SEL stm_gpio(19, 1)
+#define B2066_PIO_RTL_SCL stm_gpio(1, 3)
+#define B2066_PIO_RTL_SDA stm_gpio(1, 4)
 
 /* All the power-related PIOs are pulled up, so "ON" by default,
  * there is no need to touch them unless one really wants to... */
@@ -172,22 +175,17 @@ static struct platform_device b2066_front_panel = {
 };
 
 #if 0
-static int b2066_mii0_phy_reset(void *bus)
+/* FIXME
+ * This is the right way to reset the chip according to the RTL SMI
+ * API. Unfortunately, as soon as we reset the line the chip doesn't
+ * work. Same issue was debugged on validation side.
+ */
+static void b2066_rtl8363_reset(bool active)
 {
-	gpio_set_value(B2066_PIO_GMII0_NOTRESET, 0);
-	udelay(10000); /* 10 miliseconds is enough for everyone ;-) */
-	gpio_set_value(B2066_PIO_GMII0_NOTRESET, 1);
-
-	return 1;
-}
-
-static int b2066_mii1_phy_reset(void *bus)
-{
-	gpio_set_value(B2066_PIO_GMII1_NOTRESET, 0);
-	udelay(10000); /* 10 miliseconds is enough for everyone ;-) */
-	gpio_set_value(B2066_PIO_GMII1_NOTRESET, 1);
-
-	return 1;
+	if (active)
+		gpio_set_value(B2066_PIO_GMII1_NOTRESET, 0);
+	else
+		gpio_set_value(B2066_PIO_GMII1_NOTRESET, 1);
 }
 #endif
 
@@ -204,11 +202,40 @@ static struct fixed_phy_status stmmac0_fixed_phy_status = {
 	.duplex = 1,
 };
 
-/* Switch is managed by using fixed link support */
 static struct fixed_phy_status stmmac1_fixed_phy_status = {
 	.link = 1,
 	.speed = 1000,
 	.duplex = 1,
+};
+
+static struct rtl8367_extif_config b2066_rlt8363_extif_cfg = {
+	.mode = RTL8367_EXTIF_MODE_RGMII,
+	.txdelay = 1,
+	.rxdelay = 4,
+	.ability = {
+		.force_mode = 1,
+		.txpause = 0,
+		.rxpause = 0,
+		.link = 1,
+		.duplex = 1,
+		.speed = RTL8367_PORT_SPEED_1000,
+	},
+};
+
+static struct rtl8367_platform_data b2066_rlt8363_pdata = {
+	.gpio_sda	= B2066_PIO_RTL_SDA,
+	.gpio_sck	= B2066_PIO_RTL_SCL,
+	/*.hw_reset	= b2066_rtl8363_reset,*/
+	.extif0_cfg	= &b2066_rlt8363_extif_cfg,
+	.extif1_cfg	= &b2066_rlt8363_extif_cfg,
+};
+
+static struct platform_device b2066_rlt8363_device = {
+	.name		= "RTL8363SB",
+	.id		= -1,
+	.dev = {
+		.platform_data	= &b2066_rlt8363_pdata,
+	}
 };
 
 /* NOR Flash */
@@ -299,8 +326,6 @@ static struct platform_device *b2066_devices[] __initdata = {
 	&b2066_nor_flash
 };
 
-
-
 static int __init b2066_device_init(void)
 {
 	struct sysconf_field *sc;
@@ -346,7 +371,7 @@ static int __init b2066_device_init(void)
 	gpio_direction_output(B2066_PIO_GMII0_NOTRESET, 0);
 
 	gpio_request(B2066_PIO_GMII1_NOTRESET, "GMII1_notRESET");
-	gpio_direction_output(B2066_PIO_GMII1_NOTRESET, 0);
+	gpio_direction_output(B2066_PIO_GMII1_NOTRESET, 1);
 
 	gpio_request(B2066_PIO_GMII1_PHY_CLKOUTNOTTX_CLK_SEL,
 			"GMII1_PHY_CLKOUTnotTX_CLK_SEL");
@@ -384,6 +409,8 @@ static int __init b2066_device_init(void)
 	stx7108_configure_sata(0, &(struct stx7108_sata_config) { });
 	stx7108_configure_sata(1, &(struct stx7108_sata_config) { });
 
+	platform_device_register(&b2066_rlt8363_device);
+
 	/* GMAC 0 + MoCA device */
 	BUG_ON(fixed_phy_add(PHY_POLL, 1, &stmmac0_fixed_phy_status));
 	stx7108_configure_ethernet(0, &(struct stx7108_ethernet_config) {
@@ -393,7 +420,12 @@ static int __init b2066_device_init(void)
 			.phy_addr = 1,
 		});
 
-	/* GMAC 1 + RTK8363 switch */
+	/* In this configuration, the stmmac is setup to use
+	 * the fixed phy bus and the same link setting are passed
+	 * to force and set the RTL8363 switch ports. This is quite tricky
+	 * but actually useful to manage the iface w/o having
+	 * other switch specific API (not easy to port in this Kernel).
+	 */
 	BUG_ON(fixed_phy_add(PHY_POLL, 2, &stmmac1_fixed_phy_status));
 	stx7108_configure_ethernet(1, &(struct stx7108_ethernet_config) {
 			.mode = stx7108_ethernet_mode_rgmii_gtx,

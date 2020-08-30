@@ -23,3 +23,4 @@ obj-$(CONFIG_STE10XP)		+= ste10Xp.o
 obj-$(CONFIG_MICREL_PHY)	+= micrel.o
 obj-$(CONFIG_TERIDIAN_78Q2123)	+= t78q2123.o
 obj-$(CONFIG_RTL8201)		+= rtl8201.o
+obj-$(CONFIG_RTL8363_SWITCH)	+= rtl8363s.o rtl8366_smi.o

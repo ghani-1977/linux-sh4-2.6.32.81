@@ -92,6 +92,16 @@
 /* Command id to set key scan data */
 #define LPM_MSG_SET_KEY_SCAN	0x14
 
+/*command id for CEC addresses*/
+#define LPM_MSG_CEC_ADDR 0x15
+
+/*command id for CEC params */
+#define LPM_MSG_CEC_PARAMS 0x16
+
+/* command id for FP PIO reset ack */
+#define LPM_MSG_FP_PIO_RESET 0x17
+/*commad id for power up delays */
+#define LPM_MSG_POWER_UP_DELAY 0x18
 /*
  * Command id to set IR information on SBC CPU,
  * these are IR keys on which SBC will do wakeup.
@@ -126,12 +136,12 @@
  * software release build, month, day and year
  */
 #define LPM_MAJOR_PROTO_VER	1
-#define LPM_MINOR_PROTO_VER	0
+#define LPM_MINOR_PROTO_VER	3
 #define LPM_MAJOR_SOFT_VER	1
 #define LPM_MINOR_SOFT_VER	3
 #define LPM_PATCH_SOFT_VER	0
 #define LPM_BUILD_MONTH		9
-#define LPM_BUILD_DAY		7
+#define LPM_BUILD_DAY           27
 #define LPM_BUILD_YEAR		12
 
 /*

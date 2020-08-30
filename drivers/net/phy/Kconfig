@@ -143,4 +143,14 @@ config MDIO_GPIO
 config TERIDIAN_78Q2123
 	tristate "Support for Teridian 78Q2123 ETH PHY"
 
+config RTL8363_SWITCH
+	tristate "Support for Realtek RTL8363 Switch"
+	depends on NET
+	---help---
+	  This adds the RTL8363 Switch driver to the kernel.
+	  This is a minimal driver that can be managed as a dummy phy.
+
+	  To compile this driver as a module, choose M here: the module
+	  will be called mdio-gpio.
+
 endif # PHYLIB

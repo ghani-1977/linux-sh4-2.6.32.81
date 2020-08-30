@@ -159,6 +159,7 @@ unsigned int __initdata stm_asc_configured_devices_num;
 struct platform_device __initdata
 		*stm_asc_configured_devices[ARRAY_SIZE(stxh205_asc_devices)];
 
+struct device   *asc_dev;
 void __init stxh205_configure_asc(int asc, struct stxh205_asc_config *config)
 {
 	static int configured[ARRAY_SIZE(stxh205_asc_devices)];
@@ -194,6 +195,8 @@ void __init stxh205_configure_asc(int asc, struct stxh205_asc_config *config)
 		stm_asc_console_device = pdev->id;
 
 	stm_asc_configured_devices[stm_asc_configured_devices_num++] = pdev;
+	if(asc_dev==NULL)
+		asc_dev = &pdev->dev;
 }
 
 /* Add platform device as configured by board specific code */
@@ -273,6 +276,7 @@ static struct stm_pad_config stxh205_ssc_spi_pad_configs[] = {
 	},
 };
 
+struct device   *i2c_devices[6]={NULL};
 static struct platform_device stxh205_ssc_devices[] = {
 	[0] = {
 		/* .name & .id set in stxh205_configure_ssc_*() */
@@ -481,13 +485,16 @@ int __init stxh205_configure_ssc_i2c(int ssc, struct stxh205_ssc_config *config)
 
 	plat_data->pad_config = pad_config;
 	plat_data->i2c_fastmode = config->i2c_fastmode;
+	if (ssc > 3)
+		clk_add_alias_platform_device(NULL, &stxh205_ssc_devices[ssc],
+			"sbc_comms_clk", NULL);
 
 	/* I2C bus number reservation (to prevent any hot-plug device
 	 * from using it) */
 	i2c_register_board_info(i2c_busnum, NULL, 0);
 
 	platform_device_register(&stxh205_ssc_devices[ssc]);
-
+	i2c_devices[ssc]=&stxh205_ssc_devices[ssc].dev;
 	return i2c_busnum++;
 }
 
@@ -674,6 +681,7 @@ static struct platform_device stxh205_lpc_device = {
 		STM_PLAT_RESOURCE_IRQ(ILC_IRQ(6), -1),
 	},
 	.dev.platform_data = &(struct stm_plat_rtc_lpc) {
+		.clk_id = "CLK_C_LPM",
 		.need_wdt_reset = 1,
 		.irq_edge_level = IRQ_TYPE_EDGE_FALLING,
 		/*

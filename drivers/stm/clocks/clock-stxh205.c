@@ -176,7 +176,7 @@ _CLK(CLK_A0_IC_STNOC,       &clkgena0,    450000000,    0),
 _CLK(CLK_A0_GDP_PROC,       &clkgena0,    360000000,    0),
 _CLK(CLK_A0_NAND_CTRL,      &clkgena0,    200000000,    0),
 _CLK(CLK_A0_IC_REG_LP_ON,   &clkgena0,    100000000,    CLK_ALWAYS_ENABLED),
-_CLK(CLK_A0_SECURE,	        &clkgena0,    100000000,    0),
+_CLK(CLK_A0_SECURE,	        &clkgena0,    100000000,    CLK_ALWAYS_ENABLED),
 _CLK(CLK_A0_IC_TS_DMA,      &clkgena0,    225000000,    CLK_ALWAYS_ENABLED),
 _CLK(CLK_A0_TSOUT_SRC,      &clkgena0,    137000000,    0),
 _CLK(CLK_A0_IC_REG_LP_OFF,  &clkgena0,    100000000,    0),
@@ -258,9 +258,9 @@ _CLK_P(CLK_C_PCM1, &clkgenc, 27000000, 0, &clk_clocks[CLK_C_FS_VCO]),
 
 #ifdef ST_OS21
 static sysconf_base_t sysconf_base[] = {
-	{ 100, 184, CFG_1_BASE_ADDRESS },
-	{ 200, 248, CFG_2_BASE_ADDRESS },
-	{ 400, 510, CFG_3_BASE_ADDRESS },
+	{ 100, 184, SYSCFG_1_BASE_ADDR },
+	{ 200, 248, SYSCFG_2_BASE_ADDR },
+	{ 400, 510, SYSCFG_3_BASE_ADDR },
 	{ 0, 0, 0 }
 };
 
@@ -616,6 +616,10 @@ static int clkgenax_disable(clk_t *clk_p)
 
 	if (!clk_p)
 		return CLK_ERR_BAD_PARAMETER;
+
+	/* Can this clock be disabled ? */
+	if (clk_p->flags & CLK_ALWAYS_ENABLED)
+		return 0;
 
 	/* PLL power down */
 	switch (clk_p->id) {
@@ -1091,8 +1095,8 @@ static int clkgenb_fsyn_recalc(clk_t *clk_p)
 
 	/* Checking FSYN analog status */
 	cfg = CLK_READ(CKGB_BASE_ADDRESS + CKGB_FS_CFG(bank));
-	if ((cfg  & (1 << 14)) != (1 << 14)) {
-		/* Analog power down or reset */
+	if ((cfg  & (1 << 14)) == 0) {  
+		/* Analog power down */
 		clk_p->rate = 0;
 		return 0;
 	}
@@ -1103,8 +1107,9 @@ static int clkgenb_fsyn_recalc(clk_t *clk_p)
 		return clk_fs660c32_vco_get_rate(clk_p->parent->rate, ndiv,
 					      &clk_p->rate);
 
-	/* Checking FSYN digital part */
-	if ((cfg & (1 << dig_bit)) == 0) {	/* digital part in standbye */
+	/* Checking FSYN digital status */
+	if ((cfg & (1 << dig_bit)) == 0 || (cfg & (1 << 0)) == 0) {	
+		/* digital part in standby or reset */
 		clk_p->rate = 0;
 		return 0;
 	}
@@ -1553,6 +1558,9 @@ static int clkgenb_disable(clk_t *clk_p)
 		break;
 	}
 
+	if(clk_p->id==CLK_B_FS0_VCO || clk_p->id==CLK_B_FS1_VCO)
+		return 0;
+
 	if (clk_p->id >= CLK_B_VID_HD_LOCAL && clk_p->id <= CLK_B_CLK_27_1)
 		err = clkgenb_xable_fsyn(clk_p, 0);
 	else
@@ -1630,9 +1638,10 @@ static int clkgenc_fsyn_recalc(clk_t *clk_p)
 		return clk_fs660c32_vco_get_rate(clk_p->parent->rate, ndiv,
 					      &clk_p->rate);
 
-	/* Checking FSYN digital part */
+	/* Checking FSYN digital status */
 	dig_bit = (clk_p->id - CLK_C_SPDIF) + 10;
-	if ((cfg & (1 << dig_bit)) == 0) {	/* digital part in standbye */
+	if ((cfg & (1 << dig_bit)) == 0 || (cfg & (1 << 0)) == 0) {	
+		/* digital part in standby or reset */
 		clk_p->rate = 0;
 		return 0;
 	}

@@ -39,6 +39,11 @@ struct stm_pcie_dev_data {
 	void __iomem *config_area; /* Config read/write */
 	struct stm_msi_info *msi;
 	struct stm_miphy *miphy_dev; /* Handle for associated miphy */
+#ifdef CONFIG_HIBERNATION
+	struct device *dev;
+	unsigned long pci_window_start, pci_window_size;
+	unsigned long config_window_start;
+#endif
 };
 
 /* Routines to access the DBI port of the synopsys IP. This contains the
@@ -451,7 +456,7 @@ static void stm_pcie_board_reset(struct device *dev)
 
 
 /* Sets up any clocking, resets the controller and disables link training */
-static int __devinit stm_pcie_hw_init(struct device *dev)
+static int stm_pcie_hw_init(struct device *dev)
 {
 	struct stm_plat_pcie_config *config = dev_get_platdata(dev);
 	struct stm_plat_pcie_ops *ops = config->ops;
@@ -466,7 +471,7 @@ static int __devinit stm_pcie_hw_init(struct device *dev)
 	return 0;
 }
 
-static int __devinit stm_pcie_hw_setup(struct device *dev,
+static int stm_pcie_hw_setup(struct device *dev,
 				       unsigned long pci_window_start,
 				       unsigned long pci_window_size,
 				       unsigned long config_window_start)
@@ -561,6 +566,39 @@ static int __devinit stm_msi_probe(struct platform_device *pdev);
 static int __devinit stm_msi_probe(struct platform_device *pdev) { return 0; }
 #endif
 
+#ifdef CONFIG_HIBERNATION
+#ifdef CONFIG_PCI_MSI
+static void msi_init_one(struct stm_msi_info *msi);
+#endif
+#include <linux/stm/pm_sys.h>
+static struct stm_pcie_dev_data *stm_system_priv;
+
+static int stm_pcie_restore(void)
+{
+	stm_pcie_hw_init(stm_system_priv->dev);
+	/* turn-on MiPphy */
+	stm_miphy_start(stm_system_priv->miphy_dev);
+
+	/* recongifure all the hw */
+	stm_pcie_hw_setup(stm_system_priv->dev,
+		stm_system_priv->pci_window_start,
+		stm_system_priv->pci_window_size,
+		stm_system_priv->config_window_start);
+
+#ifdef CONFIG_PCI_MSI
+	if (stm_system_priv->msi)
+		msi_init_one(stm_system_priv->msi);
+#endif
+
+	return 0;
+}
+
+static struct stm_system stm_pcie_pm = {
+	.priority = 0x1000,
+	.name = "pcie",
+	.restore = stm_pcie_restore,
+};
+#endif
 /* Probe function for PCI data When we get here, we can assume that the PCI
  * block is powered up and ready to rock, and that all sysconfigs have been
  * set correctly.
@@ -660,6 +698,14 @@ static int __devinit stm_pcie_probe(struct platform_device *pdev)
 	/* And now hook this into the generic driver */
 	err = stm_pci_register_controller(pdev, &stm_pcie_config_ops,
 					  STM_PCI_EXPRESS);
+
+#ifdef CONFIG_HIBERNATION
+	priv->dev = &pdev->dev;
+	priv->pci_window_start = pci_window_start;
+	priv->pci_window_size = pci_window_size;
+	priv->config_window_start = config_window_start;
+	stm_system_priv = priv;
+#endif
 	return err;
 }
 
@@ -671,6 +717,9 @@ static struct platform_driver stm_pcie_driver = {
 
 static int __init stm_pcie_init(void)
 {
+#ifdef CONFIG_HIBERNATION
+	stm_register_system(&stm_pcie_pm);
+#endif
 	return platform_driver_register(&stm_pcie_driver);
 }
 
@@ -839,7 +888,7 @@ static struct irq_chip msi_chip = {
 };
 
 
-static void __devinit msi_init_one(struct stm_msi_info *msi)
+static void msi_init_one(struct stm_msi_info *msi)
 {
 	int ep;
 

@@ -133,8 +133,6 @@ void __init page_table_range_init(unsigned long start, unsigned long end,
 		j = 0;
 	}
 }
-
-EXPORT_SYMBOL(init_mm);
 #endif	/* CONFIG_MMU */
 
 /*

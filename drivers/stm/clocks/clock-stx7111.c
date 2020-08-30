@@ -1202,12 +1202,12 @@ static int clkgenb_set_div(clk_t *clk_p, unsigned long *div_p)
 	if (shift == 0xff)
 		return CLK_ERR_BAD_PARAMETER;
 
-	if (clk_p->id == CLKB_PIX_SD && clk_p->parent->id == CLKB_FS1_CH1)
+	if (clk_p->id == CLKB_PIX_SD && clk_p->parent->id == CLKB_FS1_CH1
+		&& *div_p != 1024)
 		shift += 2;
-
-	if (clk_p->id == CLKB_DVP && clk_p->parent->id == CLKB_FS1_CH1)
+	if (clk_p->id == CLKB_DVP && clk_p->parent->id == CLKB_FS1_CH1
+		&& *div_p != 1024)
 		shift += 2;
-
 
 	val = CLK_READ(CKGB_BASE_ADDRESS + reg);
 	val = val & ~(reset << shift);

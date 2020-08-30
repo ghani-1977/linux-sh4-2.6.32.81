@@ -578,10 +578,8 @@ static int show_cpuinfo(struct seq_file *m, void *v)
 	if (!cpu_online(cpu))
 		return 0;
 
-	if (cpu == 0) {
+	if (cpu == 0)
 		seq_printf(m, "machine\t\t: %s\n", get_system_type());
-		seq_printf(m, "system type\t: %s STB platform\n", get_cpu_subtype(c));
-	}
 	else
 		seq_printf(m, "\n");
 
@@ -597,8 +595,6 @@ static int show_cpuinfo(struct seq_file *m, void *v)
 		seq_printf(m, "cut\t\t: %d.%d\n", c->cut_major, c->cut_minor);
 
 	show_cpuflags(m, c);
-
-	seq_printf(m, "cpu MHz\t: %lu\n", c->loops_per_jiffy/(500000/HZ)+3);
 
 	seq_printf(m, "cache type\t: ");
 

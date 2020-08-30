@@ -646,6 +646,7 @@ void __init stxh205_configure_miphy(struct stxh205_miphy_config *config)
 	stxh205_pcie_mp_platform_data.tx_pol_inv = config->tx_pol_inv;
 
 	if (config->mode == PCIE_MODE) {
+#if 0
 		struct sysconf_field *miphy_reset, *pcie_reset, *pcie_clk_sel;
 		struct sysconf_field *sel_pcie =
 			sysconf_claim(SYSCONF(445), 1, 1, "sata/pcie");
@@ -654,21 +655,11 @@ void __init stxh205_configure_miphy(struct stxh205_miphy_config *config)
 			return;
 		}
 		sysconf_write(sel_pcie, 0);
-
+#endif
 		/* Change addresses to other port */
 		stxh205_pcie_mp_device.resource[0].start = PCIE_UPORT_BASE,
 		stxh205_pcie_mp_device.resource[0].end =
 					PCIE_UPORT_BASE + UPORT_REG_SIZE;
-
-		miphy_reset = sysconf_claim(SYSCONF(460), 18, 18, "miphy");
-		pcie_reset = sysconf_claim(SYSCONF(461), 0, 0, "pcie");
-		pcie_clk_sel = sysconf_claim(SYSCONF(468), 0, 0, "pcie");
-
-		sysconf_write(miphy_reset, 0); /* Reset miphy */
-		sysconf_write(pcie_reset, 0); /* Reset PCIe */
-		sysconf_write(pcie_clk_sel, 1); /* Select 100MHz ext clock */
-		sysconf_write(miphy_reset, 1); /* Release miphy */
-		sysconf_write(pcie_reset, 1); /* Release PCIe */
 	}
 
 	platform_device_register(&stxh205_pcie_mp_device);

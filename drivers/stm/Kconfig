@@ -44,12 +44,14 @@ config STM_MIPHY_TAP
 	default n
 
 config STM_MIPHY_PCIE_MP
-	bool
+	bool "STMicroelectronics MiPhy Uport"
 	depends on STM_MIPHY
 	default y if CPU_SUBTYPE_STX7108
 	default y if CPU_SUBTYPE_FLI75XX
 	default y if CPU_SUBTYPE_STXH205
 	default n
+	---help---
+        This option adds support for the UPort interface to MiPhy.
 
 config STM_MIPHY_DUMMY
 	bool
@@ -206,6 +208,14 @@ config STM_MALI_DEBUG
 	---help---
 	  Enable this option to enable debug trace messages on the console
 
+config STM_LPC
+	bool "Low power control"
+	depends on PM
+	default n
+	---help---
+	  This option adds support for the hardware Low Power Control
+	  tu support the wakeup_on_timeout in the suspend operation.
+
 config PMS
 	bool "Power Management Scheme"
 	default n
@@ -245,6 +255,54 @@ config STM_LPM
 	default n
 	help
 	 Enable this option for Standby Controller support.
+
+config STM_LPM_NEW
+        bool "STM Low Power Monitor New Implementation"
+        depends on STM_LPM
+        default n
+        ---help---
+          This option adds support for the hardware low power monitor.
+config STM_LPM_POWER_PIO
+        hex "POWER CONTROL PIO"
+        depends on STM_LPM && CPU_SUBTYPE_STXH205 && HIBERNATION_ON_MEMORY
+        default "0x0371"
+        ---help---
+        	This option is to select power on PIO .
+		This information will be used by SBC to do power off SOC/board 
+		Format to define POWER_PIO_IS_BELOW
+                0xnnpe, nn is PIO number
+                p is PIO pin number, This value can vary from 0 to 7
+                e is pio edge on which power will be off
+                e 1 means pio high will do power off
+                e 0  means pio low will do power off
+                possible values are l and 0
+                default 0x0371 means PIO 3, PIN7 and level high will  do power 
+config	STM_HOM_HPD_ENABLE 
+	bool "This enables HDMI HPD support wakeup from HOM"
+	depends on STM_LPM && CPU_SUBTYPE_STXH205 && HIBERNATION_ON_MEMORY
+	default n
+	---help---
+		HDMI HPS PIO must be in always on domain 
+		Enable this option and select STM_LPM_HDMI_HPD, on which 
+		PIO HDMI HPD signal is connected 
+ 	
+config STM_LPM_HDMI_HPD
+       hex "HDMI HPD PIO"
+       depends on STM_HOM_HPD_ENABLE
+       default "0x25"
+       ---help---
+               This option is to select HDMI HPD PIO for External Interrupt.
+               0xab , ab is PIO number
+               where a is PIO_PORT and b is PIO_PIN
+
+config STM_LPM_SBC_SOFT_WDT
+	bool "This enables Software watchdog for SBC"
+	depends on STM_LPM && CPU_SUBTYPE_STXH205 && HIBERNATION_ON_MEMORY
+	default n
+	---help---
+		This option will be enabled for software watchdog for SBC 
+		Using this Host driver will check SBC status and in case of 
+		problem Host will reset and reload SBC firmware  
 
 config STM_LPM_I2C
 	bool "External SBC"

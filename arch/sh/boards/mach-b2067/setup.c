@@ -254,7 +254,15 @@ static int __init device_init(void)
 			.routing.ssc1.sclk = stxh205_ssc1_sclk_pio12_0,
 			.routing.ssc1.mtsr = stxh205_ssc1_mtsr_pio12_1, });
 	/*
-	 * SSC3: SYS
+     * SSC2: FE/DEMO
+     * U14: LNBH26PQR, STxH238: J_SCL/SDA (internal demod), JB6
+     */
+    stxh205_configure_ssc_i2c(STXH205_SSC(2), &(struct stxh205_ssc_config)
+    {
+            .routing.ssc1.sclk = stxh205_ssc2_sclk_pio9_4,
+            .routing.ssc1.mtsr = stxh205_ssc2_mtsr_pio9_5
+    });
+	/* SSC3: SYS
 	 * UQ1: STV6440, UK2: M24256 (EEPROM), JQ3
 	 * Also JK2 (front panel) on rev A only
 	 */

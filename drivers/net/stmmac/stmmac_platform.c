@@ -167,14 +167,21 @@ static int stmmac_pltfr_resume(struct device *dev)
 int stmmac_pltfr_freeze(struct device *dev)
 {
 	struct net_device *ndev = dev_get_drvdata(dev);
-
-	return stmmac_freeze(ndev);
+	struct stmmac_priv *priv = netdev_priv(ndev);
+	if (device_may_wakeup(priv->device))
+		return stmmac_suspend(ndev);
+	else
+		return stmmac_freeze(ndev);
 }
 
 int stmmac_pltfr_restore(struct device *dev)
 {
 	struct net_device *ndev = dev_get_drvdata(dev);
-
+	struct stmmac_priv *priv = netdev_priv(ndev);
+	if (device_may_wakeup(priv->device)) {
+		stmmac_resume(ndev);
+		stmmac_freeze(ndev);
+	}
 	return stmmac_restore(ndev);
 }
 

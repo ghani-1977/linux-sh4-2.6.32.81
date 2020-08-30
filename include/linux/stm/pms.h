@@ -75,14 +75,13 @@ int pms_global_standby(enum pms_standby_e state);
 /*
  * PMS Api based on LPC feature
  */
-#ifdef CONFIG_RTC_CLASS
-int pms_set_wakeup_timers(unsigned long long second);
-#else
-static inline int pms_set_wakeup_timers(unsigned long long second)
-{
-	return 0;
-}
+
+#ifdef CONFIG_RTC_DRV_STM_LPC
+#error There is a conflict in the rtc-lpc device driver
 #endif
+
+int pms_set_wakeup_timers(unsigned long long second);
+
 static inline int pms_disable_wakeup_timers(void)
 {
 	return pms_set_wakeup_timers(0);
@@ -93,4 +92,5 @@ static inline int pms_change_wakeup_timers(unsigned long long second)
 	pms_set_wakeup_timers(0);
 	return pms_set_wakeup_timers(second);
 }
+
 #endif

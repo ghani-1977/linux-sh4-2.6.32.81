@@ -61,7 +61,7 @@ void register_prepare_restart_handler(void (*prepare_restart)(void))
 	list_add(&(s->list), &(restart_prep_handler_list));
 }
 
-void machine_restart(char * __unused)
+void __weak machine_restart(char * __unused)
 {
 	struct restart_prep_handler *tmp;
 	struct list_head *pos, *q;

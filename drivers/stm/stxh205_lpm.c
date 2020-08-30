@@ -26,19 +26,14 @@
 #define SBC_MB_ADDRESS	0xFE4B4000
 #define SBC_MB_SIZE	0x400
 
-/* configuration register address */
-#define SBC_CF_ADDRESS	0xFE4B5100
-#define SBC_CF_SIZE	0x200
-
 
 static struct platform_device stm_lpm_device = {
 	.name = "stm-lpm",
 	.id = 0,
-	.num_resources = 4,
+	.num_resources = 3,
 	.resource = (struct resource[]) {
 		STM_PLAT_RESOURCE_MEM(SBC_ADDRESS, SBC_SIZE),
 		STM_PLAT_RESOURCE_MEM(SBC_MB_ADDRESS, SBC_MB_SIZE),
-		STM_PLAT_RESOURCE_MEM(SBC_CF_ADDRESS, SBC_CF_SIZE),
 		STM_PLAT_RESOURCE_IRQ(ILC_IRQ(64), -1),
 	}
 };

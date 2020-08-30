@@ -103,6 +103,31 @@ struct stm_lpm_fp_setting{
 	char brightness;
 };
 
+#if 1
+/*
+* stm_lpm_pio_level
+*
+* Define level of PIO High ot LOW
+* STM_LPM_PIO_LOW indicate power off/IT will be generated when goes low
+* STM_LPM_PIO_HIGH indicate power off/IT will be generated when goes high
+*/
+
+enum stm_lpm_pio_level{
+	STM_LPM_PIO_LOW = 0,
+	STM_LPM_PIO_HIGH = 1
+};
+
+/*
+* stm_lpm_pio_direction
+*
+* Define direction of PIO input or output
+*/
+enum stm_lpm_pio_direction{
+	STM_LPM_PIO_INPUT = 0,
+	STM_LPM_PIO_OUTPUT = 1
+};
+#endif
+
 /**
  * enum stm_lpm_pio_use - to define how pio can be used
  * @STM_LPM_PIO_POWER:	PIO used for power control
@@ -118,6 +143,7 @@ enum stm_lpm_pio_use{
 	STM_LPM_PIO_WAKEUP = 3,
 	STM_LPM_PIO_EXT_IT = 4,
 	STM_LPM_PIO_OTHER = 5,
+	STM_LPM_PIO_FP_PIO = 6,
 };
 
 /**
@@ -141,9 +167,9 @@ enum stm_lpm_pio_use{
 struct stm_lpm_pio_setting{
 	char pio_bank;
 	char pio_pin;
-	bool pio_direction;
+	char pio_direction;
 	bool interrupt_enabled;
-	bool pio_level;
+	char pio_level;
 	enum stm_lpm_pio_use  pio_use;
 };
 
@@ -162,6 +188,8 @@ enum stm_lpm_adv_feature_name{
 	STM_LPM_EXT_CLOCK = 3,
 	STM_LPM_RTC_SOURCE = 4,
 	STM_LPM_WU_TRIGGERS = 5,
+	STM_LPM_DE_BOUNCE = 6,
+	STM_LPM_DC_STABLE = 7,
 };
 
 /**
@@ -194,16 +222,23 @@ enum stm_lpm_adv_feature_name{
  * 		when features is STM_LPM_WU_TRIGGERS
  *		set_parmas[0-1] is bit map for each wakeup trigger
  *		as defined in enum stm_lpm_wakeup_devices
+ *
+ *		when features is STM_LPM_DE_BOUNCE
+ *		set_parmas[0-1] is de bounce delay in ms
+ *
+ *		when features is STM_LPM_DC_STABLE
+ *		set_parmas[0-1] is delay in ms for DC stability
+ *
  * @get_params: Used to get advance feature of SBC
  *		get_params[0-3] is feature set supported by SBC , TBD
  *		get_params[4-5] is wakeup triggers
- *
+ *		get_params[6-9] is standby time
  */
 struct stm_lpm_adv_feature{
 	enum stm_lpm_adv_feature_name feature_name;
 	union {
 		unsigned char set_params[2];
-		unsigned char get_params[6];
+		unsigned char get_params[10];
 	} params;
 };
 
@@ -256,6 +291,74 @@ struct stm_lpm_ir_keyinfo{
 	struct stm_lpm_ir_key ir_key;
 };
 
+/**
+ * struct stm_lpm_cec_address - define CEC address
+ * @phy_addr : physical address
+ *		phy_addr is U16 which are represented as a.b.c.d
+ *		here in a.b.c.d each a.b.c or d is > 0 and <= f
+ *		So pack these four character into U16 before sending
+ *		1.0.0.0 means send 1, 1.3.0.0 mean send 0x31
+ * @logical_addr:	logical address
+ *			This is bit field , for each 15 address
+ *
+ */
+struct stm_lpm_cec_address {
+	u16 phy_addr;
+	u16 logical_addr;
+};
+
+/**
+ * enum stm_lpm_cec_select
+ * @STM_LPM_CONFIG_CEC_WU_REASON: Enabled disable CEC WU reason
+ * @STM_LPM_CONFIG_CEC_WU_CUSTOM_MSG Set Custom message for CEC WU
+ *
+ */
+enum stm_lpm_cec_select {
+	STM_LPM_CONFIG_CEC_WU_REASON = 1,
+	STM_LPM_CONFIG_CEC_WU_CUSTOM_MSG = 2,
+};
+
+/**
+ * enum stm_lpm_cec_wu_reason - Define CEC WU reason
+ * @STM_LPM_CEC_WU_STREAM_PATH : opcode 0x86
+ * @STM_LPM_CEC_WU_USER_POWER  : opcode 0x44, oprand 0x40
+ * @STM_LPM_CEC_WU_STREAM_POWER_ON : opcode 0x44, oprand 0x6B
+ * @STM_LPM_CEC_WU_STREAM_POWER_TOGGLE : opcode 0x44, oprand 0x6D
+ * @STM_LPM_CEC_WU_USER_MSG : user defined message
+ *
+*/
+
+enum stm_lpm_cec_wu_reason {
+	STM_LPM_CEC_WU_STREAM_PATH = 1,
+	STM_LPM_CEC_WU_USER_POWER = 2,
+	STM_LPM_CEC_WU_STREAM_POWER_ON = 4,
+	STM_LPM_CEC_WU_STREAM_POWER_TOGGLE = 8,
+	STM_LPM_CEC_WU_USER_MSG = 16,
+};
+/**
+ * struct stm_lpm_cec_custom_msg - Define CEC custom message
+ * @size : size of message
+ * @opcode : opcode
+ * @oprand : oprand
+ *
+*/
+struct stm_lpm_cec_custom_msg {
+	u8 size;
+	u8 opcode;
+	u8 oprand[10];
+};
+
+/**
+ * union stm_lpm_cec_params - to define CEC params
+ * @cec_wu_reasons :	Bit field for each CEC wakeup device
+ *			Bits should be set as per enum stm_lpm_cec_wu_reason
+ * @cec_msg :		user defined CEC message
+ *
+ */
+union stm_lpm_cec_params {
+	u8 cec_wu_reasons;
+	struct stm_lpm_cec_custom_msg cec_msg;
+};
 int stm_lpm_configure_wdt(u16 time_in_ms);
 
 int stm_lpm_get_fw_state(enum stm_lpm_sbc_state *fw_state);
@@ -289,6 +392,45 @@ int stm_lpm_set_adv_feature(u8 enabled, struct stm_lpm_adv_feature *feature);
 
 int stm_lpm_get_adv_feature(unsigned char all_features,
 				struct stm_lpm_adv_feature *feature);
+/* This API to update new SBC firmware at run-time */
+/* usage update new firmware in lib/firmware area */
+/* After updating firmware in above area call this API */
+int stm_lpm_reload_sbc_firmware(void); 
+
+/* 
+ *	return of this callback function 
+ *	should be 0 if immediate reset is required <i.e time out value is zero>
+ *	should be any positive value i.e timeout in ms after which reset is required 
+ *	should be any negative value if not needed to send a ack to SBC for this long key press. 
+ */
+typedef int (*stm_lpm_reset_notifier_fn) (void);
+
+/* to register user reset function */
+void stm_lpm_register_reset_callback(stm_lpm_reset_notifier_fn user_fn);
+
+/**
+ * function - stm_lpm_setup_fp_pio
+ * function to inform SBC about FP PIO
+ * This PIO is used to detect FP PIO Long press as defined in
+ * long_press_delay in ms.
+ * After detecting GP PIO long press SBC will send message to
+ * Host to invoke call back stm_lpm_reset_notifier_fn.
+ * If no reply from host then SBC will reset the SOC after
+ * delay specified in default_reset_delay ms.
+ * if stm_lpm_reset_notifier_fn specify some other time then
+ * SBC will reset SOC after that delay  ms.
+ */
+int stm_lpm_setup_fp_pio(struct stm_lpm_pio_setting *pio_setting,
+			u32 long_press_delay, u32 default_reset_delay);
+
+int stm_lpm_setup_power_on_delay(u16 de_bounce_delay, u16 dc_stability_delay);
+
+int stm_lpm_set_cec_addr(struct stm_lpm_cec_address *addr);
+
+int stm_lpm_cec_config(enum stm_lpm_cec_select use,
+			union stm_lpm_cec_params *params);
+
+int stm_lpm_get_standby_time(u32 *time);
 
 enum stm_lpm_config_reboot_type {
 	stm_lpm_reboot_with_ddr_self_refresh,

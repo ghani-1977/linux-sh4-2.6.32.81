@@ -356,8 +356,8 @@ struct dtv_frontend_properties {
 	    u8			interleaving;
 	} layer[3];
 
-	/* Multistream specifics */
-	u32			stream_id;
+	/* ISDB-T specifics */
+	u32			isdbs_ts_id;
 };
 
 struct dvb_frontend {

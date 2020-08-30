@@ -28,6 +28,7 @@ obj-$(CONFIG_PM)			+= pm_notify.o
 obj-$(CONFIG_PM)			+= pm_sys.o
 obj-$(CONFIG_PMS)			+= pms.o
 obj-$(CONFIG_PM_RUNTIME)		+= pm_runtime.o
+obj-$(CONFIG_STM_LPC)			+= lpc.o
 
 obj-$(CONFIG_STM_PCI_EMISS)		+= pci-emiss.o
 obj-$(CONFIG_STM_PCIE)			+= pcie.o
@@ -35,9 +36,13 @@ obj-$(CONFIG_STM_PCIE)			+= pcie.o
 obj-$(CONFIG_CPU_SUBTYPE_STXH205)	+= stxh205_lpm.o
 obj-$(CONFIG_CPU_SUBTYPE_STX7108)	+= stx7108_lpm.o
 obj-$(CONFIG_STM_LPM)			+= lpm_com.o
-obj-$(CONFIG_STM_LPM_MB)		+= lpm_mb.o
+obj-$(CONFIG_STM_LPM_MB)		+= lpm_mb.o stapi_device.o
 obj-$(CONFIG_STM_LPM_I2C)		+= lpm_i2c.o
 obj-$(CONFIG_STM_LPM_RD_MONITOR)	+= lpm_gpio_monitor.o
+
+ifdef CONFIG_STM_LPM_HDMI_HPD
+obj-$(CONFIG_CPU_SUBTYPE_STXH205)       += lpm_gpio.o
+endif
 
 obj-$(CONFIG_CPU_SUBTYPE_FLI75XX)	+= fli75xx.o fli75xx_clock.o fli75xx_audio.o fli75xx_comms.o fli75xx_hispeed.o fli75xx_pci.o
 obj-$(CONFIG_CPU_SUBTYPE_STXH205)	+= stxh205.o stxh205_clock.o stxh205_comms.o stxh205_hispeed.o stxh205_pci.o pio-control.o
