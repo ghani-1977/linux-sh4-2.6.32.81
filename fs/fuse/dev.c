@@ -17,6 +17,9 @@
 #include <linux/file.h>
 #include <linux/slab.h>
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wframe-larger-than="
+
 MODULE_ALIAS_MISCDEV(FUSE_MINOR);
 
 static struct kmem_cache *fuse_req_cachep;
@@ -1287,3 +1290,4 @@ void fuse_dev_cleanup(void)
 	misc_deregister(&fuse_miscdevice);
 	kmem_cache_destroy(fuse_req_cachep);
 }
+#pragma GCC diagnostic pop
