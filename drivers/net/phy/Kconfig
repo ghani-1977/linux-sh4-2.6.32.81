@@ -119,5 +119,8 @@ config MDIO_GPIO
 
 	  To compile this driver as a module, choose M here: the module
 	  will be called mdio-gpio.
+	  
+config TERIDIAN_78Q2123
+	tristate "Support for Teridian 78Q2123 ETH PHY"
 
 endif # PHYLIB
