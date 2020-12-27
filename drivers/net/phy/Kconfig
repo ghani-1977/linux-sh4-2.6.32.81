@@ -83,6 +83,26 @@ config STE10XP
 	---help---
 	  This is the driver for the STe100p and STe101p PHYs.
 
+choice
+        depends on STE10XP
+        prompt "PHY devices"
+
+config STE100P
+        bool "STE100P"
+        help
+          Say Y here to select the STE100P PHY
+
+config STE101P
+        bool "STE101P"
+        help
+          Say Y here to select the STE101P PHY
+endchoice
+
+
+config RTL8201 
+	depends on PHYLIB
+        bool "Driver for Realtek RTL8201 PHY"
+
 config LSI_ET1011C_PHY
 	tristate "Driver for LSI ET1011C PHY"
 	---help---
