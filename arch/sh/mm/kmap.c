@@ -36,6 +36,7 @@ void *kmap_coherent(struct page *page, unsigned long addr)
 
 	BUG_ON(test_bit(PG_dcache_dirty, &page->flags));
 
+	preempt_disable();
 	pagefault_disable();
 
 	idx = FIX_CMAP_END -
@@ -62,4 +63,5 @@ void kunmap_coherent(void *kvaddr)
 	}
 
 	pagefault_enable();
+	preempt_enable();
 }
