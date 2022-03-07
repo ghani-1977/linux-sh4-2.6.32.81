@@ -78,6 +78,31 @@ typedef struct ca_pid {
 	int index;		/* -1 == disable*/
 } ca_pid_t;
 
+ 	CA_PARITY_ODD
+};
+ 
+enum ca_descr_algo
+{
+	CA_ALGO_DVBCSA,
+	CA_ALGO_DES,
+	CA_ALGO_AES128,
+};
+
+typedef struct ca_descr_data {
+ 	unsigned int index;
+ 	enum ca_descr_parity parity;
+
+	 	unsigned int length;
+ 	unsigned char *data;
+}ca_descr_data_t;
+
+typedef struct ca_descr_mode {
+	unsigned int index;
+	enum ca_descr_algo algo;
+	int session_handle;
+	int session_descrabler_handle;
+}ca_descr_mode_t;    
+	 
 #define CA_RESET          _IO('o', 128)
 #define CA_GET_CAP        _IOR('o', 129, ca_caps_t)
 #define CA_GET_SLOT_INFO  _IOR('o', 130, ca_slot_info_t)
@@ -86,5 +111,7 @@ typedef struct ca_pid {
 #define CA_SEND_MSG       _IOW('o', 133, ca_msg_t)
 #define CA_SET_DESCR      _IOW('o', 134, ca_descr_t)
 #define CA_SET_PID        _IOW('o', 135, ca_pid_t)
+#define CA_SET_DESCR_DATA _IOW('o', 137, ca_descr_data_t)
+#define CA_SET_DESCR_MODE _IOW('o', 138, ca_descr_mode_t)  // ??????? no definition
 
 #endif
