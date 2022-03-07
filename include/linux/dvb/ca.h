@@ -81,8 +81,7 @@ typedef struct ca_pid {
  	CA_PARITY_ODD
 };
  
-enum ca_descr_algo
-{
+enum ca_descr_algo {
 	CA_ALGO_DVBCSA,
 	CA_ALGO_DES,
 	CA_ALGO_AES128,
@@ -91,8 +90,7 @@ enum ca_descr_algo
 typedef struct ca_descr_data {
  	unsigned int index;
  	enum ca_descr_parity parity;
-
-	 	unsigned int length;
+	unsigned int length;
  	unsigned char *data;
 }ca_descr_data_t;
 
